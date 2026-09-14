@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from typing import List, Optional
-from elasticsearch import Elasticsearch, exceptions
+import json
 
 @dataclass
 class RetrievalResult:
@@ -9,45 +9,36 @@ class RetrievalResult:
     score: float
 
 class Retriever:
-    def __init__(self, host: str = "http://localhost:9200", index_name: str = "wikipedia_dpr_dummy"):
-        self.es = Elasticsearch([host])
-        self.index_name = index_name
+    def __init__(self, host: str = None, index_name: str = "wikipedia-dpr"):
+        print(f"Loading prebuilt index {index_name} via pyserini...")
+        try:
+            from pyserini.search.lucene import LuceneSearcher
+        except ImportError:
+            raise ImportError("Please install pyserini: pip install pyserini faiss-cpu")
+        self.searcher = LuceneSearcher.from_prebuilt_index(index_name)
 
     def retrieve(self, queries: List[str], topk: int = 2, max_query_length: Optional[int] = None) -> List[List[RetrievalResult]]:
         results = []
         for query in queries:
             if max_query_length:
-                # Simple word-based truncation for dummy implementation
                 query = " ".join(query.split()[:max_query_length])
             
-            body = {
-                "size": topk,
-                "query": {
-                    "multi_match": {
-                        "query": query,
-                        "fields": ["title^2", "text"]
-                    }
-                }
-            }
+            # Pyserini BM25 search
+            hits = self.searcher.search(query, k=topk)
             
-            try:
-                response = self.es.search(index=self.index_name, body=body)
-                hits = response.get("hits", {}).get("hits", [])
-                
-                query_results = []
-                for hit in hits:
-                    source = hit.get("_source", {})
-                    query_results.append(RetrievalResult(
-                        doc_id=source.get("id", ""),
-                        text=source.get("text", ""),
-                        score=hit.get("_score", 0.0)
-                    ))
-                results.append(query_results)
-            except exceptions.ConnectionError as e:
-                raise RuntimeError(f"Elasticsearch is unreachable: {e}")
-            except exceptions.NotFoundError as e:
-                raise ValueError(f"Index {self.index_name} missing: {e}")
-            except Exception as e:
-                raise RuntimeError(f"Elasticsearch retrieval failed: {e}")
-                
+            query_results = []
+            for hit in hits:
+                # Extract the text content from the Pyserini hit
+                try:
+                    doc_json = json.loads(hit.raw)
+                    text = doc_json.get("contents", "")
+                except Exception:
+                    text = hit.raw
+                    
+                query_results.append(RetrievalResult(
+                    doc_id=hit.docid,
+                    text=text,
+                    score=hit.score
+                ))
+            results.append(query_results)
         return results

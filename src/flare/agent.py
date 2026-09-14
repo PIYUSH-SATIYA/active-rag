@@ -3,6 +3,9 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from src.flare.confidence import calculate_confidence
+from src.flare.lookahead import look_ahead_generate
+from src.templates import build_prompt, build_retrieval_prompt
+
 
 # Matches "So the answer is X." or "the answer is X" at end of text
 _ANSWER_RE = re.compile(r'[Ss]o the answer is ([^.\n]+)\.?', re.IGNORECASE)
@@ -20,10 +23,6 @@ def extract_answer(text: str) -> str:
     if m:
         return m.group(1).strip()
     return text
-
-
-from src.flare.lookahead import look_ahead_generate
-from src.templates import build_prompt, build_retrieval_prompt
 
 
 @dataclass
@@ -53,28 +52,64 @@ class FLAREAgent:
         self.retriever = retriever
         self.config = config
 
-    def generate(self, question: str) -> FLAREResult:
+    def generate(self, question: str, eval_mode: str = "flare") -> FLAREResult:
         """
-        Executes the FLARE generation algorithm for a single question.
+        Executes generation in one of 3 modes:
+        - 'no_retrieval': plain generation without any retriever.
+        - 'single_retrieval': retrieve once at the beginning based on the question.
+        - 'flare': active forward-looking retrieval with implicit query masking.
+        """
+        if eval_mode == "no_retrieval":
+            return self._generate_no_retrieval(question)
+        elif eval_mode == "single_retrieval":
+            return self._generate_single_retrieval(question)
+        elif eval_mode == "flare":
+            return self._generate_flare(question)
+        else:
+            raise ValueError(f"Unknown eval_mode: {eval_mode}")
 
-        Algorithm (mirrors original QueryAgent in openai_api.py):
-          1. Build the initial prompt (few-shot + question).
-          2. Look-ahead: generate `look_ahead_steps` tokens.
-          3. Truncate look-ahead at the first sentence boundary.
-          4. Check confidence: if any token prob < look_ahead_filter_prob → uncertain.
-          5. If uncertain: use look-ahead text as retrieval query → retrieve → regenerate
-             the current chunk with the retrieved context injected.
-          6. If confident: accept the look-ahead text directly.
-          7. Repeat from step 2 until max_generation_length tokens or EOS.
-        """
+    def _generate_no_retrieval(self, question: str) -> FLAREResult:
+        max_len = self.config.get("max_generation_length", 256)
+        result = look_ahead_generate(
+            generator=self.generator,
+            question=question,
+            current_answer="",
+            retrieved_contexts=[],
+            max_new_tokens=max_len,
+        )
+        return FLAREResult(text=result.text.split('\n\n')[0].strip())
+
+    def _generate_single_retrieval(self, question: str) -> FLAREResult:
+        max_len = self.config.get("max_generation_length", 256)
+        top_k = self.config.get("topk", 2)
+        
+        # Retrieve once using the question
+        retrieved_docs = self.retriever.retrieve([question], topk=top_k)
+        contexts = [doc.text for doc in retrieved_docs[0]] if retrieved_docs else []
+        
+        result = look_ahead_generate(
+            generator=self.generator,
+            question=question,
+            current_answer="",
+            retrieved_contexts=contexts,
+            max_new_tokens=max_len,
+        )
+        
+        return FLAREResult(
+            text=result.text.split('\n\n')[0].strip(),
+            retrieval_history=[{"step": 0, "query": question, "retrieved_docs": contexts}]
+        )
+
+    def _generate_flare(self, question: str) -> FLAREResult:
         max_len = self.config.get("max_generation_length", 256)
         threshold = self.config.get("look_ahead_filter_prob", 0.8)
+        beta_masking_threshold = self.config.get("beta_masking_threshold", 0.4)
         top_k = self.config.get("topk", 2)
         max_query_len = self.config.get("max_query_length", 64)
         look_ahead_steps = self.config.get("look_ahead_steps", 64)
 
         current_answer = ""
-        retrieved_contexts: list[str] = []  # accumulated context passages
+        retrieved_contexts: list[str] = []
         retrieval_history = []
         generation_history = []
         confidence_history = []
@@ -85,9 +120,6 @@ class FLAREAgent:
         while total_tokens_generated < max_len:
             step += 1
 
-            # ----------------------------------------------------------------
-            # 1. Look-ahead generation
-            # ----------------------------------------------------------------
             lookahead_result = look_ahead_generate(
                 generator=self.generator,
                 question=question,
@@ -96,10 +128,8 @@ class FLAREAgent:
                 max_new_tokens=look_ahead_steps,
             )
 
-            # Truncate at first sentence boundary (mirrors original behaviour)
             lookahead_sentence = _truncate_at_sentence_boundary(lookahead_result.text)
 
-            # Align token lists to the truncated sentence length
             truncated_len = len(lookahead_sentence)
             truncated_tokens = []
             truncated_probs = []
@@ -117,9 +147,6 @@ class FLAREAgent:
                 "probabilities": truncated_probs,
             })
 
-            # ----------------------------------------------------------------
-            # 2. Confidence check
-            # ----------------------------------------------------------------
             is_confident = calculate_confidence(truncated_probs, threshold)
             min_prob = min(truncated_probs) if truncated_probs else 1.0
             confidence_history.append({
@@ -129,9 +156,6 @@ class FLAREAgent:
             })
 
             if is_confident:
-                # ----------------------------------------------------------------
-                # 3a. Accept look-ahead directly
-                # ----------------------------------------------------------------
                 chunk = lookahead_sentence
                 current_answer += (" " if current_answer else "") + chunk
                 total_tokens_generated += len(truncated_tokens)
@@ -140,13 +164,22 @@ class FLAREAgent:
                 generation_history[-1]["type"] = "direct"
             else:
                 # ----------------------------------------------------------------
-                # 3b. Uncertain → retrieve using look-ahead text as query
-                #     (NOT current_answer — this is the core FLARE idea)
+                # Implicit Masking (Confidence-based Query Formulation)
                 # ----------------------------------------------------------------
+                masked_query_tokens = []
+                for tok, prob in zip(truncated_tokens, truncated_probs):
+                    if prob < beta_masking_threshold:
+                        # Skip or replace with nothing to avoid hallucinated constraints
+                        pass
+                    else:
+                        masked_query_tokens.append(tok)
+                
+                query = "".join(masked_query_tokens).strip()
+                # Fallback to the full sentence if the query became empty
+                if not query:
+                    query = lookahead_sentence
 
-                # Build retrieval query: only the uncertain look-ahead sentence,
-                # optionally word-truncated to max_query_length
-                query_words = lookahead_sentence.split()
+                query_words = query.split()
                 query = " ".join(query_words[:max_query_len])
 
                 retrieved_docs = self.retriever.retrieve(
@@ -155,7 +188,6 @@ class FLAREAgent:
                 docs_for_query = retrieved_docs[0] if retrieved_docs else []
                 new_contexts = [doc.text for doc in docs_for_query]
 
-                # Accumulate retrieved contexts (replace strategy, like original)
                 retrieved_contexts = new_contexts
 
                 retrieval_history.append({
@@ -164,10 +196,6 @@ class FLAREAgent:
                     "retrieved_docs": new_contexts,
                 })
 
-                # ----------------------------------------------------------------
-                # Regenerate the current chunk WITH the retrieved context.
-                # We do NOT keep the failed lookahead — we regenerate fresh.
-                # ----------------------------------------------------------------
                 regen_result = look_ahead_generate(
                     generator=self.generator,
                     question=question,
@@ -183,21 +211,13 @@ class FLAREAgent:
                 generation_history[-1]["regen_text"] = regen_sentence
                 generation_history[-1]["type"] = "retrieval_regen"
 
-            # ----------------------------------------------------------------
-            # 4. Stop conditions
-            # ----------------------------------------------------------------
-            # (a) Model returned EOS (empty output after stripping)
             if not lookahead_sentence.strip():
                 break
 
-            # (b) finish_reason from model signals end of sequence
             if lookahead_result.finish_reason in ("eos_token", "length"):
                 if lookahead_result.finish_reason == "eos_token":
                     break
-                # "length" just means we hit max_new_tokens — continue the loop
 
-            # (c) Original FLARE final_stop_sym = '\n\n'
-            # The model has finished the answer if it generated a double newline.
             if '\n\n' in current_answer:
                 current_answer = current_answer.split('\n\n')[0].strip()
                 break

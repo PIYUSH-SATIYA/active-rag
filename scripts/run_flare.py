@@ -2,7 +2,7 @@
 Full FLARE runner — loads dataset, runs FLARE on each example, saves results.
 
 Usage (from repo root, with venv active):
-    PYTHONPATH=. python scripts/run_flare.py
+    PYTHONPATH=. python scripts/run_flare.py --eval_mode flare
 
 Output files:
     results/predictions.jsonl  — per-example prediction + metadata
@@ -12,13 +12,14 @@ Output files:
 import json
 import os
 import sys
+import argparse
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.models.qwen import QwenModel
 from src.flare.agent import FLAREAgent, extract_answer
 from src.retriever import Retriever
-from src.datasets import WikiMultiHopQA
+from src.datasets import get_dataset
 
 CONFIG_PATH = "configs/2wikihop_qwen_flare_config.json"
 RESULTS_DIR = "results"
@@ -29,6 +30,12 @@ def _sep(title: str):
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Run FLARE or baselines.")
+    parser.add_argument("--eval_mode", type=str, default="flare", 
+                        choices=["no_retrieval", "single_retrieval", "flare"],
+                        help="Evaluation mode to run")
+    args = parser.parse_args()
+
     os.makedirs(RESULTS_DIR, exist_ok=True)
 
     # ------------------------------------------------------------------
@@ -38,10 +45,10 @@ def main():
     with open(CONFIG_PATH) as f:
         config = json.load(f)
 
-    es_cfg = config.get("elasticsearch", {})
     ds_cfg = config.get("dataset", {})
     max_examples = ds_cfg.get("max_examples", 500)
     data_path = ds_cfg.get("path", "data/2wikimultihopqa")
+    dataset_name = ds_cfg.get("name", "2wikihop")
 
     # ------------------------------------------------------------------
     # Model
@@ -60,20 +67,24 @@ def main():
     # ------------------------------------------------------------------
     # Retriever
     # ------------------------------------------------------------------
-    _sep("Connecting to Elasticsearch")
-    es_url = es_cfg.get("url", "http://localhost:9200")
-    es_index = es_cfg.get("index", "wikipedia_dpr")
-    print(f"URL   : {es_url}")
-    print(f"Index : {es_index}")
-    retriever = Retriever(host=es_url, index_name=es_index)
-    print("Retriever ready.")
+    if args.eval_mode == "no_retrieval":
+        retriever = None
+        print("Skipping retriever initialization for no_retrieval mode.")
+    else:
+        _sep("Connecting to Retriever (Pyserini)")
+        es_cfg = config.get("elasticsearch", {}) # Keeping key name for backward compatibility
+        es_index = es_cfg.get("index", "wikipedia-dpr")
+        print(f"Index : {es_index}")
+        retriever = Retriever(index_name=es_index)
+        print("Retriever ready.")
 
     # ------------------------------------------------------------------
     # Dataset
     # ------------------------------------------------------------------
     _sep("Loading dataset")
+    print(f"Name   : {dataset_name}")
     print(f"Path   : {data_path}")
-    dataset = WikiMultiHopQA(data_dir=data_path, split="dev")
+    dataset = get_dataset(dataset_name, data_dir=data_path, split="dev")
     examples = list(dataset)[:max_examples]
     print(f"Loaded {len(examples)} examples (max_examples={max_examples}).")
 
@@ -99,7 +110,7 @@ def main():
         print(f"Question : {question}")
         print(f"Gold     : {gold_answer}")
 
-        result = agent.generate(question)
+        result = agent.generate(question, eval_mode=args.eval_mode)
 
         # ------------------------------------------------------------------
         # Evaluation
@@ -107,8 +118,8 @@ def main():
         # Extract short answer from the chain-of-thought output
         predicted_answer = extract_answer(result.text)
 
-        em_scores = WikiMultiHopQA.exact_match_score(predicted_answer, gold_answer)
-        f1_scores = WikiMultiHopQA.f1_score(predicted_answer, gold_answer)
+        em_scores = dataset.exact_match_score(predicted_answer, gold_answer)
+        f1_scores = dataset.f1_score(predicted_answer, gold_answer)
         all_em.append(em_scores["correct"])
         all_f1.append(f1_scores["f1"])
 

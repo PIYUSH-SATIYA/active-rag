@@ -37,8 +37,8 @@ docker/elasticsearch/data/
 # ─── Large data / model assets (real corpora — never commit) ─────────────────
 # Real DPR Wikipedia corpus
 data/dpr/
-# Real 2WikiMultihopQA splits (large; download separately)
-data/2wikimultihopqa/*.json
+# Ignore all real dataset files (download separately)
+data/*/*.json
 # Real corpus TSVs (can be huge)
 *.tsv
 *.tsv.gz
@@ -68,3 +68,8 @@ logs/
 # ─── Dummy data: ALLOW everything in data/dummy/ (small, committed) ──────────
 !data/dummy/
 !data/dummy/**
+
+__MACOSX/
+
+data_ids.zip
+data_ids/

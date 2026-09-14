@@ -13,8 +13,8 @@
     },
     "dataset": {
         "name": "2wikihop",
-        "path": "data/dummy",
-        "fewshot": 8,
-        "max_examples": 2
+        "path": "data/2wikimultihopqa",
+        "max_examples": 500,
+        "fewshot": 8
     }
 }

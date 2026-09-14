@@ -2,6 +2,7 @@ torch
 transformers
 accelerator
 pytest
-elasticsearch==7.17.9
+pyserini
+faiss-cpu
 spacy
 bitsandbytes

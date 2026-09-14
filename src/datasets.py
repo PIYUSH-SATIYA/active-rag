@@ -36,7 +36,12 @@ class WikiMultiHopQA:
             return {}
             
         with open(self.alias_file, 'r', encoding='utf-8') as f:
-            return json.load(f)
+            aliases_dict = {}
+            for line in f:
+                if line.strip():
+                    item = json.loads(line)
+                    aliases_dict[item["Q_id"]] = item.get("aliases", [])
+            return aliases_dict
 
     def __len__(self):
         return len(self.examples)
@@ -87,5 +92,101 @@ class WikiMultiHopQA:
         precision = 1.0 * num_same / len(pred_tokens)
         recall = 1.0 * num_same / len(truth_tokens)
         f1 = (2 * precision * recall) / (precision + recall)
+        if precision + recall == 0:
+            f1 = 0.0
         return {'f1': f1, 'precision': precision, 'recall': recall}
 
+
+class StrategyQA(WikiMultiHopQA):
+    """
+    Commonsense reasoning dataset.
+    Uses similar evaluation metrics as WikiMultiHopQA.
+    """
+    def __init__(self, data_dir: str = "data/strategyqa", split: str = "dev"):
+        super().__init__(data_dir, split)
+
+    def _load_data(self) -> List[Dict[str, Any]]:
+        if not os.path.exists(self.data_file):
+            print(f"Warning: Data file {self.data_file} not found. Returning empty dataset.")
+            return []
+        
+        with open(self.data_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            
+        formatted_data = []
+        for item in data:
+            formatted_data.append({
+                "id": item.get("qid", item.get("id", "")),
+                "question": item.get("question", ""),
+                "answer": str(item.get("answer", "")).lower(),
+            })
+        return formatted_data
+
+
+class ASQA(WikiMultiHopQA):
+    """
+    Long-form QA dataset.
+    Note: Requires specific ROUGE/Disambig-F1 metric implementations for full evaluation.
+    This acts as a placeholder using standard F1 for now.
+    """
+    def __init__(self, data_dir: str = "data/asqa", split: str = "dev"):
+        super().__init__(data_dir, split)
+
+    def _load_data(self) -> List[Dict[str, Any]]:
+        if not os.path.exists(self.data_file):
+            print(f"Warning: Data file {self.data_file} not found. Returning empty dataset.")
+            return []
+        
+        with open(self.data_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            
+        formatted_data = []
+        for item in data:
+            formatted_data.append({
+                "id": item.get("id", ""),
+                "question": item.get("ambiguous_question", ""),
+                "answer": item.get("answer", ""),
+            })
+        return formatted_data
+
+
+class WikiAsp(WikiMultiHopQA):
+    """
+    Open-domain summarization dataset.
+    """
+    def __init__(self, data_dir: str = "data/wikiasp", split: str = "dev"):
+        super().__init__(data_dir, split)
+
+    def _load_data(self) -> List[Dict[str, Any]]:
+        if not os.path.exists(self.data_file):
+            print(f"Warning: Data file {self.data_file} not found. Returning empty dataset.")
+            return []
+        
+        with open(self.data_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            
+        formatted_data = []
+        for item in data:
+            formatted_data.append({
+                "id": item.get("id", ""),
+                "question": item.get("input", ""),
+                "answer": item.get("output", ""),
+            })
+        return formatted_data
+
+
+def get_dataset(name: str, data_dir: str, split: str = "dev"):
+    """
+    Factory function to retrieve the appropriate dataset class.
+    """
+    name = name.lower().replace("-", "")
+    if name in ["2wikihop", "2wikimultihopqa"]:
+        return WikiMultiHopQA(data_dir, split)
+    elif name == "strategyqa":
+        return StrategyQA(data_dir, split)
+    elif name == "asqa":
+        return ASQA(data_dir, split)
+    elif name == "wikiasp":
+        return WikiAsp(data_dir, split)
+    else:
+        raise ValueError(f"Unknown dataset name: {name}")
