@@ -1,0 +1,6 @@
+{
+    "look_ahead_filter_prob": 0.8,
+    "max_generation_length": 256,
+    "confidence_threshold": 0.8,
+    "retrieval_top_k": 2
+}
