@@ -9,7 +9,7 @@
     "quantize_4bit": true,
     "elasticsearch": {
         "url": "http://localhost:9200",
-        "index": "wikipedia_dpr"
+        "index": "wikipedia-dpr"
     },
     "dataset": {
         "name": "2wikihop",
