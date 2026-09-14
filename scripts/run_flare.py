@@ -1,50 +1,182 @@
+"""
+Full FLARE runner — loads dataset, runs FLARE on each example, saves results.
+
+Usage (from repo root, with venv active):
+    PYTHONPATH=. python scripts/run_flare.py
+
+Output files:
+    results/predictions.jsonl  — per-example prediction + metadata
+    results/metrics.json       — EM and F1 aggregate scores
+    results/traces.jsonl       — full FLARE trace per example
+"""
 import json
+import os
+import sys
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 from src.models.qwen import QwenModel
-from src.flare.agent import FLAREAgent
-from tests.test_flare import MockRetriever
+from src.flare.agent import FLAREAgent, extract_answer
+from src.retriever import Retriever
+from src.datasets import WikiMultiHopQA
+
+CONFIG_PATH = "configs/2wikihop_qwen_flare_config.json"
+RESULTS_DIR = "results"
+
+
+def _sep(title: str):
+    print(f"\n{'=' * 60}\n  {title}\n{'=' * 60}")
 
 
 def main():
+    os.makedirs(RESULTS_DIR, exist_ok=True)
+
+    # ------------------------------------------------------------------
+    # Config
+    # ------------------------------------------------------------------
     print("Loading config...")
-    with open("configs/2wikihop_qwen_flare_config.json", "r") as f:
+    with open(CONFIG_PATH) as f:
         config = json.load(f)
 
-    print("Loading Qwen model... (this may take a while if using GPU)")
-    # If testing without GPU, we can use a mock or a smaller model.
-    # For now we use from_pretrained with quantize_4bit if GPU is limited.
-    # We'll use device_map="auto".
-    try:
-        generator = QwenModel.from_pretrained(quantize_4bit=True)
-    except Exception as e:
-        print(f"Failed to load model: {e}")
-        print("Falling back to MockGenerator for testing...")
-        from tests.test_flare import MockGenerator
-        from src.models.qwen import GeneratorResult
-        generator = MockGenerator([
-            GeneratorResult(text="This is a test answer.", token_ids=[1,2,3], tokens=["This", " is", " a"], probabilities=[0.9, 0.9, 0.9])
-        ])
+    es_cfg = config.get("elasticsearch", {})
+    ds_cfg = config.get("dataset", {})
+    max_examples = ds_cfg.get("max_examples", 500)
+    data_path = ds_cfg.get("path", "data/2wikimultihopqa")
 
-    print("Initializing Mock Retriever...")
-    retriever = MockRetriever()
+    # ------------------------------------------------------------------
+    # Model
+    # ------------------------------------------------------------------
+    _sep("Loading Qwen model")
+    print(f"Model : {config['model_name']}")
+    print(f"4-bit : {config.get('quantize_4bit', True)}")
+    print("This may take 1–2 minutes on first load...")
 
+    generator = QwenModel.from_pretrained(
+        model_name=config["model_name"],
+        quantize_4bit=config.get("quantize_4bit", True),
+    )
+    print("Model loaded.")
+
+    # ------------------------------------------------------------------
+    # Retriever
+    # ------------------------------------------------------------------
+    _sep("Connecting to Elasticsearch")
+    es_url = es_cfg.get("url", "http://localhost:9200")
+    es_index = es_cfg.get("index", "wikipedia_dpr")
+    print(f"URL   : {es_url}")
+    print(f"Index : {es_index}")
+    retriever = Retriever(host=es_url, index_name=es_index)
+    print("Retriever ready.")
+
+    # ------------------------------------------------------------------
+    # Dataset
+    # ------------------------------------------------------------------
+    _sep("Loading dataset")
+    print(f"Path   : {data_path}")
+    dataset = WikiMultiHopQA(data_dir=data_path, split="dev")
+    examples = list(dataset)[:max_examples]
+    print(f"Loaded {len(examples)} examples (max_examples={max_examples}).")
+
+    # ------------------------------------------------------------------
+    # FLARE Agent
+    # ------------------------------------------------------------------
     agent = FLAREAgent(generator=generator, retriever=retriever, config=config)
 
-    question = "What is the primary function of FLARE?"
-    print(f"\nQuestion: {question}")
-    
-    result = agent.generate(question)
-    
-    print("\n--- Final Answer ---")
-    print(result.text)
-    
-    print("\n--- Generation History ---")
-    print(json.dumps(result.generation_history, indent=2))
-    
-    print("\n--- Retrieval History ---")
-    print(json.dumps(result.retrieval_history, indent=2))
-    
-    print("\n--- Confidence History ---")
-    print(json.dumps(result.confidence_history, indent=2))
+    # ------------------------------------------------------------------
+    # Run
+    # ------------------------------------------------------------------
+    all_em, all_f1 = [], []
+    pred_file = open(os.path.join(RESULTS_DIR, "predictions.jsonl"), "w")
+    trace_file = open(os.path.join(RESULTS_DIR, "traces.jsonl"), "w")
+
+    for i, example in enumerate(examples):
+        question = example["question"]
+        gold_answer = example["answer"]
+        ex_id = example["id"]
+
+        _sep(f"Example {i + 1}/{len(examples)}")
+        print(f"ID       : {ex_id}")
+        print(f"Question : {question}")
+        print(f"Gold     : {gold_answer}")
+
+        result = agent.generate(question)
+
+        # ------------------------------------------------------------------
+        # Evaluation
+        # ------------------------------------------------------------------
+        # Extract short answer from the chain-of-thought output
+        predicted_answer = extract_answer(result.text)
+
+        em_scores = WikiMultiHopQA.exact_match_score(predicted_answer, gold_answer)
+        f1_scores = WikiMultiHopQA.f1_score(predicted_answer, gold_answer)
+        all_em.append(em_scores["correct"])
+        all_f1.append(f1_scores["f1"])
+
+        print(f"\nFull output   : {result.text}")
+        print(f"Predicted ans : {predicted_answer}")
+        print(f"Gold answer   : {gold_answer}")
+        print(f"EM            : {em_scores['correct']}")
+        print(f"F1            : {f1_scores['f1']:.4f}")
+
+        # Confidence / retrieval summary
+        n_retrievals = len(result.retrieval_history)
+        n_steps = len(result.confidence_history)
+        print(f"Steps      : {n_steps}  |  Retrievals triggered: {n_retrievals}")
+
+        # Print trace
+        for entry in result.generation_history:
+            kind = entry.get("type", "?")
+            lookahead = entry.get("lookahead_text", "")
+            min_p = entry.get("min_probability", None)
+            flag = "✓" if entry.get("type") == "direct" else "↩"
+            print(f"  {flag} Step {entry['step']} [{kind}] lookahead={lookahead!r}  min_prob={min_p:.3f}" if min_p is not None else f"  {flag} Step {entry['step']} [{kind}]")
+
+        # ------------------------------------------------------------------
+        # Save
+        # ------------------------------------------------------------------
+        pred_file.write(json.dumps({
+            "id": ex_id,
+            "question": question,
+            "gold_answer": gold_answer,
+            "full_output": result.text,
+            "prediction": predicted_answer,
+            "em": em_scores["correct"],
+            "f1": f1_scores["f1"],
+            "n_retrievals": n_retrievals,
+            "n_steps": n_steps,
+        }) + "\n")
+        pred_file.flush()
+
+        trace_file.write(json.dumps({
+            "id": ex_id,
+            "question": question,
+            "generation_history": result.generation_history,
+            "retrieval_history": result.retrieval_history,
+            "confidence_history": result.confidence_history,
+        }) + "\n")
+        trace_file.flush()
+
+    pred_file.close()
+    trace_file.close()
+
+    # ------------------------------------------------------------------
+    # Aggregate metrics
+    # ------------------------------------------------------------------
+    n = len(all_em)
+    metrics = {
+        "n_examples": n,
+        "exact_match": round(sum(all_em) / n, 4) if n else 0.0,
+        "f1": round(sum(all_f1) / n, 4) if n else 0.0,
+    }
+
+    with open(os.path.join(RESULTS_DIR, "metrics.json"), "w") as f:
+        json.dump(metrics, f, indent=2)
+
+    _sep("FINAL RESULTS")
+    print(f"Examples : {metrics['n_examples']}")
+    print(f"EM       : {metrics['exact_match']:.4f}")
+    print(f"F1       : {metrics['f1']:.4f}")
+    print(f"\nOutputs saved to: {RESULTS_DIR}/")
 
 
 if __name__ == "__main__":

@@ -1,19 +1,25 @@
 #!/bin/bash
-
-# Exit immediately if a command exits with a non-zero status
+# Run the FLARE pipeline with the local Qwen model.
+# Usage: bash qwen.sh
 set -e
 
-echo "Starting FLARE execution using Qwen local model..."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
 
-# Activate virtual environment if using venv
-if [ -d ".venv" ]; then
-    source .venv/bin/activate
+# Activate the venv
+source .venv/bin/activate
+
+# Make sure src/ is importable
+export PYTHONPATH="$SCRIPT_DIR:$PYTHONPATH"
+
+echo "=== Checking Elasticsearch ==="
+if ! curl -sf http://localhost:9200 > /dev/null; then
+    echo "ERROR: Elasticsearch is not reachable at http://localhost:9200"
+    echo "Start it with: docker start flare-elasticsearch"
+    exit 1
 fi
+echo "Elasticsearch OK."
 
-# Set python path
-export PYTHONPATH="$(pwd):$PYTHONPATH"
-
-# Run the integration script
+echo ""
+echo "=== Starting FLARE run ==="
 python scripts/run_flare.py
-
-echo "Execution completed."

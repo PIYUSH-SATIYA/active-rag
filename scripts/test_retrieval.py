@@ -9,7 +9,7 @@ from src.retriever import Retriever
 def run_tests():
     print("Initializing Retriever (pointing to local Elasticsearch dummy index)...")
     try:
-        retriever = Retriever(host="http://localhost:9200", index_name="wikipedia_dpr_dummy")
+        retriever = Retriever(host="http://localhost:9200", index_name="wikipedia_dpr")
     except Exception as e:
         print(f"Failed to initialize Retriever: {e}")
         return

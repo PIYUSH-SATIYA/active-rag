@@ -1,4 +1,7 @@
 torch
 transformers
-accelerate
+accelerator
 pytest
+elasticsearch==7.17.9
+spacy
+bitsandbytes
