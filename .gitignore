@@ -1,0 +1,70 @@
+# ─── Python ──────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ─── Jupyter ─────────────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+
+# ─── Environment / Secrets ───────────────────────────────────────────────────
+.env
+*.env
+
+# ─── Editors ─────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ─── OS ──────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ─── Docker ──────────────────────────────────────────────────────────────────
+docker/elasticsearch/data/
+
+# ─── Large data / model assets (real corpora — never commit) ─────────────────
+# Real DPR Wikipedia corpus
+data/dpr/
+# Real 2WikiMultihopQA splits (large; download separately)
+data/2wikimultihopqa/*.json
+# Real corpus TSVs (can be huge)
+*.tsv
+*.tsv.gz
+# Model weights / HuggingFace cache
+*.bin
+*.safetensors
+*.gguf
+*.ckpt
+*.pt
+*.pth
+hf_cache/
+huggingface/
+
+# ─── Elasticsearch data directory (Docker volume data) ───────────────────────
+esdata/
+
+# ─── Results / outputs ───────────────────────────────────────────────────────
+results/*.json
+results/*.jsonl
+results/*.csv
+results/*.txt
+
+# ─── Logs ────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ─── Dummy data: ALLOW everything in data/dummy/ (small, committed) ──────────
+!data/dummy/
+!data/dummy/**

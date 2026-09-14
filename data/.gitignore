@@ -1,0 +1,12 @@
+# Ignore everything in this data/ directory by default ...
+*
+
+# ... but allow subdirectory tracking (so nested .gitignore / .gitkeep work)
+!*/
+
+# Allow dummy data directory and its contents (small, committed)
+!dummy/
+!dummy/**
+
+# Allow this .gitignore itself
+!.gitignore

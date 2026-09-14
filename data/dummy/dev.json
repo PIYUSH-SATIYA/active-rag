@@ -1,0 +1,26 @@
+[
+  {
+    "_id": "dummy_1",
+    "question": "What is the capital of France?",
+    "answer": "Paris",
+    "type": "bridge",
+    "context": [
+      ["France", ["France is a country in Europe.", "Its capital is Paris."]]
+    ],
+    "supporting_facts": [
+      ["France", 1]
+    ]
+  },
+  {
+    "_id": "dummy_2",
+    "question": "Who developed the theory of relativity?",
+    "answer": "Albert Einstein",
+    "type": "bridge",
+    "context": [
+      ["Albert Einstein", ["Albert Einstein was a German-born theoretical physicist.", "He developed the theory of relativity."]]
+    ],
+    "supporting_facts": [
+      ["Albert Einstein", 1]
+    ]
+  }
+]
