@@ -34,6 +34,10 @@ def main():
     parser.add_argument("--eval_mode", type=str, default="flare", 
                         choices=["no_retrieval", "single_retrieval", "flare"],
                         help="Evaluation mode to run")
+    parser.add_argument("--dataset", type=str, default=None,
+                        help="Override dataset name (e.g. strategyqa, asqa, wikiasp, 2wikihop)")
+    parser.add_argument("--data_path", type=str, default=None,
+                        help="Override dataset path (e.g. data/strategyqa)")
     args = parser.parse_args()
 
     os.makedirs(RESULTS_DIR, exist_ok=True)
@@ -47,8 +51,8 @@ def main():
 
     ds_cfg = config.get("dataset", {})
     max_examples = ds_cfg.get("max_examples", 500)
-    data_path = ds_cfg.get("path", "data/2wikimultihopqa")
-    dataset_name = ds_cfg.get("name", "2wikihop")
+    dataset_name = args.dataset if args.dataset else ds_cfg.get("name", "2wikihop")
+    data_path = args.data_path if args.data_path else ds_cfg.get("path", "data/2wikimultihopqa")
 
     # ------------------------------------------------------------------
     # Model
@@ -94,16 +98,36 @@ def main():
     agent = FLAREAgent(generator=generator, retriever=retriever, config=config)
 
     # ------------------------------------------------------------------
-    # Run
+    # Run (with Resume Capability)
     # ------------------------------------------------------------------
-    all_em, all_f1 = [], []
-    pred_file = open(os.path.join(RESULTS_DIR, "predictions.jsonl"), "w")
-    trace_file = open(os.path.join(RESULTS_DIR, "traces.jsonl"), "w")
+    pred_path = os.path.join(RESULTS_DIR, "predictions.jsonl")
+    trace_path = os.path.join(RESULTS_DIR, "traces.jsonl")
+    
+    completed_ids = set()
+    all_em = []
+    all_f1 = []
+
+    if os.path.exists(pred_path):
+        print("\nFound existing predictions.jsonl! Loading completed examples for resume...")
+        with open(pred_path, "r") as f:
+            for line in f:
+                data = json.loads(line)
+                completed_ids.add(data["id"])
+                all_em.append(data["em"])
+                all_f1.append(data["f1"])
+        print(f"Resuming from example {len(completed_ids) + 1}...")
+
+    pred_file = open(pred_path, "a")
+    trace_file = open(trace_path, "a")
 
     for i, example in enumerate(examples):
+        ex_id = str(example["id"])
+        
+        if ex_id in completed_ids:
+            continue
+
         question = example["question"]
         gold_answer = example["answer"]
-        ex_id = example["id"]
 
         _sep(f"Example {i + 1}/{len(examples)}")
         print(f"ID       : {ex_id}")
@@ -122,6 +146,7 @@ def main():
         f1_scores = dataset.f1_score(predicted_answer, gold_answer)
         all_em.append(em_scores["correct"])
         all_f1.append(f1_scores["f1"])
+        completed_ids.add(ex_id)
 
         print(f"\nFull output   : {result.text}")
         print(f"Predicted ans : {predicted_answer}")
