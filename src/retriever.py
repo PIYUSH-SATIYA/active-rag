@@ -30,15 +30,20 @@ class Retriever:
             for hit in hits:
                 # Extract the text content from the Pyserini hit
                 try:
-                    doc_json = json.loads(hit.raw)
-                    text = doc_json.get("contents", "")
-                except Exception:
-                    text = hit.raw
-                    
-                query_results.append(RetrievalResult(
-                    doc_id=hit.docid,
-                    text=text,
-                    score=hit.score
-                ))
+                    doc = self.searcher.doc(hit.docid)
+                    raw_content = doc.raw()
+                    try:
+                        doc_json = json.loads(raw_content)
+                        text = doc_json.get("contents", "")
+                    except Exception:
+                        text = raw_content
+                        
+                    query_results.append(RetrievalResult(
+                        doc_id=hit.docid,
+                        text=text,
+                        score=hit.score
+                    ))
+                except Exception as e:
+                    print(f"Error extracting hit: {e}")
             results.append(query_results)
         return results

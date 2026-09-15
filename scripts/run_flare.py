@@ -38,9 +38,11 @@ def main():
                         help="Override dataset name (e.g. strategyqa, asqa, wikiasp, 2wikihop)")
     parser.add_argument("--data_path", type=str, default=None,
                         help="Override dataset path (e.g. data/strategyqa)")
+    parser.add_argument("--results_dir", type=str, default="results",
+                        help="Directory to save the outputs")
     args = parser.parse_args()
 
-    os.makedirs(RESULTS_DIR, exist_ok=True)
+    os.makedirs(args.results_dir, exist_ok=True)
 
     # ------------------------------------------------------------------
     # Config
@@ -100,8 +102,8 @@ def main():
     # ------------------------------------------------------------------
     # Run (with Resume Capability)
     # ------------------------------------------------------------------
-    pred_path = os.path.join(RESULTS_DIR, "predictions.jsonl")
-    trace_path = os.path.join(RESULTS_DIR, "traces.jsonl")
+    pred_path = os.path.join(args.results_dir, "predictions.jsonl")
+    trace_path = os.path.join(args.results_dir, "traces.jsonl")
     
     completed_ids = set()
     all_em = []
@@ -205,14 +207,14 @@ def main():
         "f1": round(sum(all_f1) / n, 4) if n else 0.0,
     }
 
-    with open(os.path.join(RESULTS_DIR, "metrics.json"), "w") as f:
+    with open(os.path.join(args.results_dir, "metrics.json"), "w") as f:
         json.dump(metrics, f, indent=2)
 
     _sep("FINAL RESULTS")
     print(f"Examples : {metrics['n_examples']}")
     print(f"EM       : {metrics['exact_match']:.4f}")
     print(f"F1       : {metrics['f1']:.4f}")
-    print(f"\nOutputs saved to: {RESULTS_DIR}/")
+    print(f"\nOutputs saved to: {args.results_dir}/")
 
 
 if __name__ == "__main__":
