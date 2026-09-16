@@ -94,6 +94,12 @@ def main():
     examples = list(dataset)[:max_examples]
     print(f"Loaded {len(examples)} examples (max_examples={max_examples}).")
 
+    if len(examples) == 0:
+        print(f"\n[ERROR] No examples loaded for dataset '{dataset_name}' from '{data_path}'.")
+        print(f"        Expected file: {os.path.join(data_path, 'dev.json')}")
+        print(f"        Please download the dataset and place dev.json in the correct directory.")
+        sys.exit(1)
+
     # ------------------------------------------------------------------
     # FLARE Agent
     # ------------------------------------------------------------------
