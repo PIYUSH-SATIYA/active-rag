@@ -1,6 +1,7 @@
 torch
 transformers
-accelerator
+accelerate
+datasets
 pytest
 pyserini
 faiss-cpu
