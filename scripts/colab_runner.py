@@ -129,12 +129,14 @@ def cmd_setup(args) -> None:
         # Install only what the pilot needs. Colab already provides torch and
         # transformers; pulling the full requirements.txt would drag in
         # Pyserini/FAISS/Spacy and waste 10+ minutes.
-        needed = ["torch", "transformers", "bitsandbytes", "datasets", "ddgs", "requests"]
+        needed = ["torch", "transformers", "bitsandbytes", "ddgs", "requests"]
         missing = [name for name in needed if not have_module(name)]
         if missing:
             run([sys.executable, "-m", "pip", "install", "-q", *missing])
 
     if args.download_data:
+        if not have_module("datasets"):
+            run([sys.executable, "-m", "pip", "install", "-q", "datasets"])
         run(
             [
                 sys.executable,
