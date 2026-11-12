@@ -430,16 +430,30 @@ def cmd_merge(args) -> None:
     if not baseline_dir:
         print("[merge] WARNING: no baseline dir; baseline rows will be skipped")
 
+    # Teammates usually have separate Colab/Drive accounts, so accept extra
+    # result directories from copies they share.
+    roots = [results_root] + [
+        root for root in (getattr(args, "merge_roots", None) or []) if root
+    ]
+
     summary: list[dict] = []
     for job in matrix["jobs"]:
         limit = job_limit(job, args)
-        source_path = job_predictions_path(job, results_root, baseline_dir)
-        if not source_path or not os.path.exists(source_path):
-            print(f"[merge] {job['id']}: no predictions at {source_path}; skipping")
+        source_paths: list[str] = []
+        for root in roots:
+            path = job_predictions_path(job, root, baseline_dir)
+            if path and os.path.exists(path) and path not in source_paths:
+                source_paths.append(path)
+        if not source_paths:
+            print(f"[merge] {job['id']}: no predictions under {roots}; skipping")
             continue
 
         ids = expected_ids(job, baseline_dir, limit)
-        rows = read_jsonl(source_path)
+        rows: list[dict] = []
+        # Read extra roots first and the primary root last: `rescore_rows`
+        # keeps the last duplicate ID, so local results win.
+        for path in reversed(source_paths):
+            rows.extend(read_jsonl(path))
         rescored, metrics = rescore_rows(
             rows,
             dataset_name=job["dataset"],
@@ -522,6 +536,32 @@ def cmd_merge(args) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Pack (share one worker's partial results with the merger)
+# ---------------------------------------------------------------------------
+def cmd_pack(args) -> None:
+    import zipfile
+
+    results_root = Path(args.results_root or default_results_root())
+    out = Path(args.pack_out or (REPO_ROOT / "webflare-results.zip"))
+    if not results_root.exists():
+        raise SystemExit(f"[pack] results root does not exist: {results_root}")
+
+    files = 0
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as archive:
+        for name in ("jobs", "web_cache", "summary.md", "summary.csv", "summary.json"):
+            target = results_root / name
+            if target.is_dir():
+                for path in target.rglob("*"):
+                    if path.is_file():
+                        archive.write(path, path.relative_to(results_root))
+                        files += 1
+            elif target.exists():
+                archive.write(target, target.name)
+                files += 1
+    print(f"[pack] {files} files -> {out}")
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 def build_parser() -> argparse.ArgumentParser:
@@ -562,10 +602,21 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="skip the live search provider check before loading the model",
     )
+    common.add_argument(
+        "--merge-roots",
+        nargs="+",
+        default=None,
+        help="extra results directories (other workers' copies) to merge",
+    )
+    common.add_argument(
+        "--pack-out",
+        default=None,
+        help="output zip path for the `pack` command",
+    )
 
     parser = argparse.ArgumentParser(description="Web-FLARE Colab runner")
     sub = parser.add_subparsers(dest="command", required=True)
-    for name in ("setup", "run", "merge", "all"):
+    for name in ("setup", "run", "merge", "pack", "all"):
         sub.add_parser(name, parents=[common])
     return parser
 
@@ -584,6 +635,8 @@ def main() -> int:
         cmd_run(args)
     elif args.command == "merge":
         cmd_merge(args)
+    elif args.command == "pack":
+        cmd_pack(args)
     elif args.command == "all":
         cmd_setup(args)
         # Start the clock after setup: pip installs and model downloads are

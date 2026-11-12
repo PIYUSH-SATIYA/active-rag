@@ -85,6 +85,20 @@ Merge after the workers finish:
 python scripts/colab_runner.py merge
 ```
 
+If the three workers used **separate Colab/Drive accounts**, collect their
+result folders and point `--merge-roots` at them:
+
+```bash
+# on each worker: produce a zip to share
+python scripts/colab_runner.py pack --pack-out worker0.zip
+
+# after downloading the other zips and unzipping them into ./shared/
+python scripts/colab_runner.py merge --merge-roots shared/worker1 shared/worker2
+```
+
+The primary `--results-root` wins when the same example ID exists in more than
+one copy. `pack` includes `jobs/`, `web_cache/`, and any `summary.*` files.
+
 Outputs:
 
 ```
