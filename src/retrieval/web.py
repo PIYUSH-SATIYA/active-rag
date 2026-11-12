@@ -435,6 +435,9 @@ class WebRetriever:
 
     def _search_with_fallback(self, query: str, topk: int) -> list[dict]:
         max_results = max(topk * 3, 5)
+        if self.exclude_domains:
+            # Domain-filtered ablations need a wider candidate pool.
+            max_results = max(max_results, topk * 8, 12)
         errors: list[str] = []
 
         for provider in self._provider_order():

@@ -308,15 +308,22 @@ def cmd_run(args, deadline: Optional[float] = None) -> None:
     print(f"[run] baseline dir: {baseline_dir}")
 
     jobs = select_jobs(matrix, args)
-    # Longest job first balances the round-robin split across workers.
-    jobs.sort(key=lambda job: -job_limit(job, args))
-    assigned = [
-        job for index, job in enumerate(jobs) if index % args.num_workers == args.worker_id
-    ]
+    # LPT scheduling: longest job first, always to the least-loaded worker.
+    # With the default matrix this yields 100/100/100 examples per worker.
+    buckets: list[list[dict]] = [[] for _ in range(args.num_workers)]
+    loads = [0] * args.num_workers
+    for job in sorted(jobs, key=lambda item: -job_limit(item, args)):
+        target = min(range(args.num_workers), key=lambda index: loads[index])
+        buckets[target].append(job)
+        loads[target] += job_limit(job, args)
+    assigned = buckets[args.worker_id]
     if not assigned:
         print(f"[run] worker {args.worker_id} has no jobs")
         return
-    print(f"[run] worker {args.worker_id}/{args.num_workers}: {[j['id'] for j in assigned]}")
+    print(
+        f"[run] worker {args.worker_id}/{args.num_workers} "
+        f"(load={loads[args.worker_id]}): {[j['id'] for j in assigned]}"
+    )
 
     if any((job.get("retriever") or "").lower() == "hybrid" for job in assigned):
         ensure_java()

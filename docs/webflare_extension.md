@@ -37,7 +37,7 @@ read `retrieved_docs` are unaffected.
 | `strategyqa_web_flare` | StrategyQA | 100 | Web | flare | yes |
 | `strategyqa_bm25_no_ret` | StrategyQA | 100 | None | no_retrieval | re-scored baseline |
 | `2wiki_hybrid_flare` | 2Wiki | 100 | Hybrid | flare | `--include-optional` |
-| `2wiki_web_nwiki` | 2Wiki | 50 | Web minus Wikipedia | flare | `--include-optional` |
+| `2wiki_web_nwiki` | 2Wiki | 50 | Web minus Wikipedia | flare | yes |
 
 The BM25 rows are **not regenerated**. They are re-scored from the existing
 `results/2wiki_flare`, `results/strategyqa_flare`, and
@@ -61,16 +61,15 @@ python scripts/colab_runner.py all \
 Use the same `--num-workers` and different `--worker-id` values (0, 1, 2) in
 the other sessions. A single GPU works with `--num-workers 1`.
 
-Jobs are sorted longest-first before the round-robin split, so the two
-100-example web jobs land on different workers.
+Jobs are assigned longest-first to the least-loaded worker (LPT), so the
+default matrix splits 100/100/100 examples across three workers.
 
 Useful flags:
 
 - `--quick` caps every job at 50 examples.
 - `--n 40` caps every job at 40 examples.
-- `--include-optional` adds the hybrid and non-Wikipedia jobs. The hybrid
-  needs Pyserini, Java 21, and a multi-GB prebuilt index, so it is off by
-  default.
+- `--include-optional` adds the hybrid job. It needs Pyserini, Java 21,
+  and a multi-GB prebuilt index, so it is off by default.
 - `--budget-minutes` is checked before each new example; partial results are kept.
 - `--dry-run` prints the assignment and example IDs without loading the model.
 - Before loading Qwen, the runner probes two live searches and prints provider

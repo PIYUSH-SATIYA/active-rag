@@ -107,7 +107,7 @@
       "n": 50,
       "kind": "run",
       "ids_source": "2wiki_flare",
-      "optional": true,
+      "optional": false,
       "retriever_options": {
         "exclude_wikipedia": true
       }
