@@ -1,0 +1,857 @@
+% ============================================================
+%  FLARE Reimplementation Report — IEEE Conference Format (IEEEtran)
+%  Overleaf: use IEEEtran class (v1.8b+)
+% ============================================================
+
+\documentclass[conference]{IEEEtran}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{microtype}
+\usepackage{cite}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{xcolor}
+\usepackage{url}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{balance}
+\usepackage{enumitem}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue,
+  citecolor=blue,
+  urlcolor=blue
+}
+
+\lstset{
+  basicstyle=\footnotesize\ttfamily,
+  breaklines=true,
+  frame=single,
+  backgroundcolor=\color{gray!8},
+  keywordstyle=\color{blue}\bfseries,
+  commentstyle=\color{green!50!black},
+  stringstyle=\color{red!70!black},
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  numbersep=5pt,
+  tabsize=2,
+  showstringspaces=false
+}
+
+% ============================================================
+\begin{document}
+
+\title{%
+    Reimplementing FLARE: Active\\
+    Retrieval-Augmented Generation\\
+    with a Locally Deployed Small Language Model%
+}
+
+\author{%
+    \IEEEauthorblockN{
+        Piyush Satiya -- 202451130
+        \hspace{1.5cm}
+        Prayag Kirar -- 202451134
+        \hspace{1.5cm}
+        Sanskar Sharma -- 202451148
+    }
+
+    \\
+
+    \IEEEauthorblockA{
+        Department of Computer Science and Engineering\\
+        Indian Institute of Information Technology Vadodara\\
+        Gandhinagar, Gujarat, India
+    }
+
+    \vspace{0.3cm}
+
+    \IEEEauthorblockA{
+        \textbf{Course Instructor:} Jignesh Patel \quad | \quad \textbf{Course:} CS307
+    }
+}
+
+\maketitle
+
+% ============================================================
+\begin{abstract}
+This paper describes our reimplementation of FLARE (Forward-Looking
+Active REtrieval Augmented Generation)~\cite{sun2023flare}. FLARE
+works by checking how confident the model is about each token it
+generates, and only retrieves Wikipedia documents when confidence
+drops below a threshold. The original paper used Codex
+(${\sim}175$B parameters, closed API). Since Codex is no longer
+accessible, we used \textbf{Qwen3-4B-Instruct-2507} with 4-bit NF4
+quantization, running fully on a local GPU, paired with a Pyserini
+BM25 index over Wikipedia. We tested three modes — No Retrieval,
+Single Retrieval, and FLARE — on three benchmark datasets:
+2WikiMultiHopQA, StrategyQA, and ASQA. Even with a model roughly
+40$\times$ smaller, the main finding holds on all three datasets:
+FLARE outperforms both baselines. On StrategyQA the FLARE gain
+over Single Retrieval ($+9.2$\% EM) is almost the same as the
+paper's ($+8.7$\% EM), which suggests the mechanism works at
+smaller scales too. On ASQA the improvement is actually larger
+in our case, which we think is because smaller models need
+retrieval more.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Retrieval-Augmented Generation, Active Retrieval, FLARE,
+BM25, Qwen, Multi-Hop QA, Open-Domain QA, Large Language Models,
+Token Confidence
+\end{IEEEkeywords}
+
+% ============================================================
+\section{Introduction}
+\label{sec:intro}
+
+Language models often generate text that sounds correct but is
+factually wrong — a problem commonly called hallucination~\cite{ji2023hallucination}.
+Retrieval-Augmented Generation (RAG)~\cite{lewis2020rag} is one
+approach to reduce this: before generating an answer, the system
+fetches relevant documents from Wikipedia and gives them to the model
+as context. This works reasonably well, but the retrieval only happens
+once, using the original question as the search query.
+
+The problem is that for multi-step questions, the original question is
+not always enough to find the right documents. For example, the question
+\emph{``Who is the mother of the director of Polish-Russian War?''} first
+requires knowing who directed the film, and only then can you search
+for that person's mother. A single retrieval at the beginning cannot
+handle this kind of chained reasoning.
+
+FLARE (Sun et al., EMNLP 2023)~\cite{sun2023flare} tries to fix this by
+making retrieval happen \emph{during} generation rather than only
+at the start. The model generates a tentative next sentence, and if it
+is not confident about certain words, those words are masked and the
+remaining confident words are used to search Wikipedia. Then the
+sentence is regenerated with the retrieved context. This loop
+continues until the answer is complete.
+
+We reimplemented this system using open-source tools that run locally,
+and checked whether the paper's main claims hold when using a much
+smaller model. The code is available at:
+\url{https://github.com/PIYUSH-SATIYA/active-rag}.
+
+% ============================================================
+\section{Background}
+\label{sec:background}
+
+\subsection{Retrieval-Augmented Generation}
+The original RAG paper~\cite{lewis2020rag} proposed retrieving
+documents from a dense index and using them to condition generation.
+FiD (Fusion-in-Decoder)~\cite{izacard2020leveraging} took this
+further by fusing multiple retrieved passages in the encoder.
+Both methods do retrieval once at query time.
+
+\subsection{Iterative Retrieval}
+Some later work tried retrieval at multiple steps.
+IRCOT~\cite{trivedi2022interleaving} interleaves chain-of-thought
+steps with retrieval calls. Self-Ask~\cite{press2022measuring} has
+the model generate explicit sub-questions and retrieves for each.
+FLARE is different because it does not ask the model to plan out
+sub-questions — instead it watches the token probabilities and
+retrieves automatically when uncertainty appears.
+
+\subsection{Using Confidence for Generation}
+The idea of using token probabilities as an uncertainty signal is not
+entirely new. It has been used in selective
+prediction~\cite{kamath2020selective} and for detecting knowledge
+conflicts~\cite{longpre2021entity}. What FLARE does differently is
+use confidence to \emph{decide when to retrieve}, which is a
+practical and fairly elegant application of this idea.
+
+% ============================================================
+\section{The FLARE Paper: What It Proposes}
+\label{sec:paper_overview}
+
+\subsection{The Generation Loop}
+At each step, given question $q$ and what has been generated so far
+$s_{1..t-1}$, FLARE does the following:
+
+\begin{enumerate}[leftmargin=*, itemsep=2pt]
+  \item Generate the next sentence $\hat{s}_t$ and record the
+    probability of each token: $\{p_1, \ldots, p_n\}$.
+  \item If all token probabilities are above threshold $\theta$,
+    accept the sentence and move on.
+  \item Otherwise, drop tokens with $p_i < \beta$ (these might be
+    hallucinations) and use the rest as a search query $q_t$.
+  \item Retrieve top-$k$ Wikipedia passages $\mathcal{D}_t$ using
+    BM25 with query $q_t$.
+  \item Regenerate the sentence with $\mathcal{D}_t$ added to the
+    context.
+  \item Add the sentence to the answer and repeat.
+\end{enumerate}
+
+\subsection{Two Variants}
+The paper has two versions of FLARE:
+\begin{itemize}[leftmargin=*]
+  \item \textbf{FLARE\textsubscript{direct}} — uses the look-ahead
+    sentence (after masking uncertain tokens) as the search query.
+    This is what we implemented.
+  \item \textbf{FLARE\textsubscript{instruct}} — explicitly tells
+    the model to generate a search query using special prompting.
+\end{itemize}
+FLARE\textsubscript{direct} gets better numbers in the paper
+(51.0\% vs 42.4\% EM on 2WikiMultiHopQA) so we focused on that.
+
+\subsection{Original Setup}
+The paper ran everything with Codex (\texttt{text-davinci-003},
+${\sim}175$B parameters) through the OpenAI API. They built a custom
+BM25 index over Wikipedia, split into 100-word passages. Evaluation
+used 500 development examples per dataset with greedy decoding.
+
+% ============================================================
+\section{System Architecture}
+\label{sec:architecture}
+
+Our system is designed to match the paper's architecture as closely
+as possible, given that we had to swap the model and the index.
+Figure~\ref{fig:architecture} shows how the parts connect.
+
+\begin{figure}[htbp]
+\centering
+\fbox{\parbox{0.9\linewidth}{\centering\vspace{1.2cm}
+  \small
+  \textbf{Question}\\
+  $\downarrow$\\
+  \textbf{FLAREAgent} (agent.py)\\
+  $\updownarrow$\hspace{1.5cm}$\updownarrow$\\
+  \textbf{QwenModel}\hspace{0.6cm}\textbf{Retriever}\\
+  (qwen.py)\hspace{0.9cm}(retriever.py)\\
+  $\updownarrow$\hspace{2.8cm}$\updownarrow$\\
+  \textbf{ConfidenceChecker}\quad\textbf{Pyserini BM25}\\
+  confidence.py\hspace{0.7cm}\texttt{wikipedia-dpr}\\
+  $\downarrow$\\
+  \textbf{Final Answer}
+  \vspace{1.2cm}
+}}
+\caption{System architecture. The FLAREAgent runs the loop,
+calling the model and retriever as needed each step.}
+\label{fig:architecture}
+\end{figure}
+
+There are five main components:
+
+\subsubsection*{Language Model (\texttt{src/models/qwen.py})}
+This wraps the Qwen3-4B model. The important part is that it
+returns per-token probabilities from \texttt{model.generate()},
+using the \texttt{output\_scores=True} flag. Without this, the
+confidence check cannot work. Output is stored in a
+\texttt{GeneratorResult} dataclass with the text, tokens,
+and their probabilities.
+
+\subsubsection*{Confidence Checker (\texttt{src/flare/confidence.py})}
+Very simple — checks if the minimum token probability in a sentence
+is below $\theta$. If yes, retrieval is triggered.
+
+\subsubsection*{Look-ahead Generator (\texttt{src/flare/lookahead.py})}
+Builds the prompt and calls the model to get the next sentence.
+Uses greedy decoding so results are deterministic.
+
+\subsubsection*{Retriever (\texttt{src/retriever.py})}
+Uses Pyserini's \texttt{LuceneSearcher} with the pre-built
+\texttt{wikipedia-dpr} index — 21 million 100-word passages.
+Same passage size as the paper.
+
+\subsubsection*{FLARE Agent (\texttt{src/flare/agent.py})}
+The main class. Implements all three evaluation modes and saves
+traces to disk after every step, so we can analyze what happened.
+
+% ============================================================
+\section{Implementation Details}
+\label{sec:implementation}
+
+\subsection{Model and Quantization}
+
+We could not use Codex since OpenAI removed it. We picked
+\textbf{Qwen3-4B-Instruct-2507}~\cite{qwen3} because it is
+open-source, reasonably capable, and fits on a single 16\,GB GPU
+after quantization. Full FP16 takes about 8\,GB; with 4-bit NF4
+quantization via \texttt{bitsandbytes}~\cite{dettmers2024qlora}
+it drops to roughly 2.5\,GB:
+
+\begin{lstlisting}[language=Python, caption={NF4 quantization config (src/models/qwen.py)}]
+BitsAndBytesConfig(
+    load_in_4bit=True,
+    bnb_4bit_quant_type="nf4",
+    bnb_4bit_compute_dtype=torch.float16,
+    bnb_4bit_use_double_quant=True,
+)
+\end{lstlisting}
+
+Weights are stored in 4-bit but matrix multiplications happen in
+FP16, which keeps the quality reasonable.
+
+\subsection{Adapting for a Chat Model}
+
+This was the main design challenge. Codex is a completion model — you
+give it text and it continues it. Qwen3-4B-Instruct is a chat model
+that expects messages in a specific format. We worked around this by
+putting the entire few-shot prompt into a single user message and
+running it through Qwen's chat template:
+
+\begin{lstlisting}[language=Python, caption={Wrapping the few-shot prompt as a chat message}]
+messages = [{"role": "user",
+             "content": full_fewshot_prompt}]
+input_ids = tokenizer.apply_chat_template(
+    messages, tokenize=True,
+    add_generation_prompt=True,
+    return_tensors="pt"
+)
+\end{lstlisting}
+
+This is the one place where our implementation structurally differs
+from the paper's prompt setup.
+
+\subsection{Few-Shot Examples}
+
+Like the paper, we use 8 question-answer examples written by hand in
+chain-of-thought format. The model sees these before every question:
+
+\begin{lstlisting}[caption={Example from src/templates.py}]
+Q: Were Pavel Urysohn and Leonid Levin both Russian?
+A: Pavel Urysohn was a Soviet mathematician.
+   Leonid Levin is a Soviet-American mathematician.
+   So the answer is yes.
+\end{lstlisting}
+
+Every answer ends with ``So the answer is X.'' and we extract the
+final answer using that pattern. No fine-tuning was done.
+
+\subsection{Wikipedia Retrieval}
+
+We used Pyserini's \texttt{wikipedia-dpr} index~\cite{pyserini}
+instead of building our own. It has 21M passages of about 100 words
+each, from a 2018 Wikipedia dump — same segmentation as the paper.
+Building the index from scratch needs a 20\,GB dump download; the
+prebuilt index avoids that.
+
+BM25 scores each passage as:
+\begin{equation}
+  \text{BM25}(d,q) = \sum_{t \in q}
+    \text{IDF}(t) \cdot
+    \frac{f(t,d)(k_1+1)}{f(t,d)+k_1(1-b+b\frac{|d|}{\text{avgdl}})}
+\end{equation}
+with $k_1 = 0.9$ and $b = 0.4$ (Pyserini defaults).
+
+\subsection{Hyperparameters}
+
+We matched the paper's hyperparameters wherever possible.
+Table~\ref{tab:hyperparams} lists everything.
+
+\begin{table}[htbp]
+\caption{Hyperparameter Configuration}
+\label{tab:hyperparams}
+\centering
+\begin{tabular}{lrl}
+\toprule
+\textbf{Parameter} & \textbf{Value} & \textbf{Description} \\
+\midrule
+$\theta$ & 0.8  & Confidence threshold (triggers retrieval) \\
+$\beta$  & 0.4  & Masking threshold (query building) \\
+$k$      & 2    & Passages retrieved per query \\
+Look-ahead tokens & 64 & Max tokens per generation step \\
+Max answer tokens & 256 & Total answer length cap \\
+Few-shot examples & 8  & In-context demonstrations \\
+Max query words   & 64 & Search query length cap \\
+Decoding          & Greedy & \texttt{do\_sample=False} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Sentence Splitting}
+
+FLARE works sentence by sentence. After each look-ahead we cut the
+output at the first sentence boundary using a regex:
+
+\begin{lstlisting}[language=Python, caption={Sentence boundary detection}]
+_SENT = re.compile(r'(?<=[.!?])\s+')
+
+def _truncate_at_sentence_boundary(text):
+    parts = _SENT.split(text.strip(), maxsplit=1)
+    return parts[0].strip()
+\end{lstlisting}
+
+\subsection{Output Files}
+
+For each experiment the runner saves three files:
+\begin{itemize}[leftmargin=*]
+  \item \texttt{predictions.jsonl} — question, gold answer, predicted
+    answer, EM and F1 per example.
+  \item \texttt{metrics.json} — aggregate numbers.
+  \item \texttt{traces.jsonl} — every generation step with confidence
+    scores, queries sent to BM25, and what came back.
+\end{itemize}
+If a run crashes, the runner reads back the completed lines and skips
+them on restart, so compute is not wasted.
+
+% ============================================================
+\section{Datasets}
+\label{sec:datasets}
+
+We tested on three of the four datasets from the paper. The fourth
+(WikiASP) had a data loading issue that we could not resolve in time
+and is not included here. Table~\ref{tab:datasets} gives an overview.
+
+\begin{table}[htbp]
+\caption{Datasets Used}
+\label{tab:datasets}
+\centering
+\begin{tabular}{p{2.0cm}p{1.8cm}p{1.5cm}r}
+\toprule
+\textbf{Dataset} & \textbf{Task Type} & \textbf{Answer Format} & \textbf{Dev Size} \\
+\midrule
+2WikiMultiHopQA & Multi-hop QA        & Short string  & 500 \\
+StrategyQA      & Commonsense yes/no  & true/false    & 500 \\
+ASQA            & Ambiguous QA        & Multi-answer  & 500 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{2WikiMultiHopQA}
+This dataset~\cite{ho2020constructing} has questions that need
+exactly two Wikipedia lookups to answer. For example:
+\emph{``Who is the mother of the director of Polish-Russian War?''}
+You first need to find the director, then find his mother. The
+answers are short strings (names, dates, places), so Exact Match
+is a reasonable metric.
+
+\subsection{StrategyQA}
+StrategyQA~\cite{geva2021aristotle} is a yes/no dataset where
+each question needs implicit multi-step reasoning. For example:
+\emph{``Is the tibia necessary to win the Stanley Cup?''} — you
+need to know what the tibia is and how the Stanley Cup works.
+The gold labels are stored as \texttt{true}/\texttt{false}. Our
+model outputs \texttt{yes}/\texttt{no}, so we normalize before
+scoring.
+
+\subsection{ASQA}
+ASQA~\cite{stelmakh2022asqa} contains ambiguous questions that
+have multiple valid answers depending on context or interpretation.
+For example: \emph{``Who has the highest goals in world football?''}
+— different sources give different answers (Cristiano Ronaldo, Josef
+Bican, etc.). Evaluation checks if the model's answer matches any
+item in the gold answer set.
+
+% ============================================================
+\section{Evaluation Metrics}
+\label{sec:metrics}
+
+\subsection{Exact Match}
+Both the prediction and gold answer are normalized — lowercase,
+punctuation removed, articles (\emph{a, an, the}) dropped,
+extra spaces collapsed — and then compared character by character.
+A prediction either matches or it doesn't. We report the percentage
+of examples that match.
+
+EM is strict. If the model says \emph{``The mother was Małgorzata
+Braunek''} instead of just \emph{``Małgorzata Braunek''}, it scores
+0, even though the right name is in there.
+
+\subsection{Token-level F1}
+Both strings are treated as bags of words and we compute the
+harmonic mean of precision and recall:
+\begin{equation}
+  F_1 = \frac{2 \cdot |P \cap G|}{|P| + |G|}
+\end{equation}
+where $P$ is the predicted token set and $G$ is the gold token set.
+F1 gives partial credit, so it is always at least as high as EM.
+
+\subsection{Metrics We Did Not Implement}
+The paper uses Disambig-F1 for ASQA (checks coverage across all
+valid interpretations of an ambiguous question) and ROUGE-L plus
+UniEval for WikiASP. We only computed EM and F1 due to time and
+scope constraints.
+
+% ============================================================
+\section{Results}
+\label{sec:results}
+
+All experiments use 500 development examples. Paper numbers are from
+Sun et al.~\cite{sun2023flare} using Codex.
+
+\subsection{2WikiMultiHopQA}
+
+\begin{table}[htbp]
+\caption{Results on 2WikiMultiHopQA}
+\label{tab:2wiki}
+\centering
+\begin{tabular}{lcccc}
+\toprule
+\multirow{2}{*}{\textbf{Method}} &
+  \multicolumn{2}{c}{\textbf{Ours (Qwen3-4B)}} &
+  \multicolumn{2}{c}{\textbf{Paper (Codex)}} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+& EM & F1 & EM & F1 \\
+\midrule
+No Retrieval     & 9.6\%  & 15.9\% & 28.2\% & 36.8\% \\
+Single Retrieval & 21.2\% & 25.2\% & 39.4\% & 48.8\% \\
+\textbf{FLARE}   & \textbf{23.2\%} & \textbf{28.4\%}
+                 & \textbf{51.0\%} & \textbf{59.7\%} \\
+\midrule
+\multicolumn{5}{l}{\small FLARE gain: Ours $+2.0\%$ EM \quad Paper $+11.6\%$ EM} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The ordering No Retrieval $<$ Single Retrieval $<$ FLARE holds in
+our results, which matches the paper. The absolute numbers are lower
+across the board by roughly 18 percentage points. We think this gap
+comes from the model — a 4B quantized model just knows fewer facts
+than a 175B model. The FLARE gain here is smaller than the paper's
+($+2.0\%$ vs $+11.6\%$ EM). This is partly because our model
+retrieves at nearly every step (88.7\% of steps), which introduces
+noise from irrelevant passages and reduces the net benefit of
+retrieval. This is discussed more in Section~\ref{sec:analysis}.
+
+\subsection{StrategyQA}
+
+\begin{table}[htbp]
+\caption{Results on StrategyQA}
+\label{tab:stratqa}
+\centering
+\begin{tabular}{lccc}
+\toprule
+\textbf{Method} & \textbf{Ours EM} & \textbf{Paper EM} & \textbf{Gap} \\
+\midrule
+No Retrieval     & 15.6\% & 72.9\% & $-57.3$ pp \\
+Single Retrieval & 31.0\% & 68.6\% & $-37.6$ pp \\
+\textbf{FLARE}   & \textbf{40.2\%} & \textbf{77.3\%} & $-37.1$ pp \\
+\midrule
+\multicolumn{4}{l}{\small FLARE gain: Ours $+9.2\%$ \quad Paper $+8.7\%$ (very close)} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+This is probably our best result. The FLARE improvement over Single
+Retrieval is $+9.2\%$ EM in our case and $+8.7\%$ EM in the paper.
+That is close enough that we feel the mechanism is working correctly
+at this scale.
+
+The overall numbers are much lower than the paper (40.2\% vs 77.3\%
+for FLARE), which is expected given the model size difference. These
+questions need commonsense reasoning that smaller models tend to
+struggle with.
+
+One thing worth noting: in the paper, Single Retrieval is actually
+slightly worse than No Retrieval on this dataset (68.6\% vs 72.9\%).
+We do not see that — in our case Single Retrieval helps. This likely
+happens because our model has less built-in knowledge and benefits
+from any grounding, whereas Codex already knows most of these
+answers and extra retrieved documents can sometimes confuse it.
+
+\subsection{ASQA}
+
+\begin{table}[htbp]
+\caption{Results on ASQA}
+\label{tab:asqa}
+\centering
+\begin{tabular}{lcccc}
+\toprule
+\multirow{2}{*}{\textbf{Method}} &
+  \multicolumn{2}{c}{\textbf{Ours (Qwen3-4B)}} &
+  \multicolumn{2}{c}{\textbf{Paper (Codex)}} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+& EM & F1 & EM & Disambig-F1 \\
+\midrule
+No Retrieval     & 15.0\% & 22.2\% & 33.8\% & 24.2\% \\
+Single Retrieval & 15.0\% & 24.9\% & 40.0\% & 27.1\% \\
+\textbf{FLARE}   & \textbf{29.0\%} & \textbf{37.6\%}
+                 & \textbf{41.3\%} & \textbf{28.2\%} \\
+\midrule
+\multicolumn{5}{l}{\small FLARE gain: Ours $+14.0\%$ EM \quad Paper $+1.3\%$ EM} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The ASQA result is interesting. Our FLARE improvement ($+14.0\%$ EM)
+is much larger than the paper's ($+1.3\%$ EM). Single Retrieval
+does not help at all over No Retrieval in our case (both 15.0\% EM)
+— which makes sense because fetching documents for an ambiguous
+question just gives you documents about one interpretation. FLARE
+can refine what it is looking for over multiple steps, which is
+exactly what these questions need.
+
+We think this larger gain happens because our model has less
+internal knowledge than Codex, so the iterative retrieval fills a
+bigger gap. Codex can often just answer from memory; Qwen3-4B needs
+the retrieval to compensate.
+
+The F1 scores also show a clear pattern even when EM does not
+differentiate as much. Single Retrieval's F1 (24.9\%) is higher
+than No Retrieval (22.2\%) even though EM is the same, which
+suggests the retrieved documents do help with partial correctness.
+
+\subsection{FLARE Gain Summary}
+
+Table~\ref{tab:gain_summary} shows FLARE's improvement over Single
+Retrieval across all three datasets. This is the most direct way
+to evaluate whether the FLARE mechanism itself is adding value.
+
+\begin{table}[htbp]
+\caption{FLARE Gain over Single Retrieval (EM)}
+\label{tab:gain_summary}
+\centering
+\begin{tabular}{p{2.2cm}ccc}
+\toprule
+\textbf{Dataset} & \textbf{Ours} & \textbf{Paper} & \textbf{Assessment} \\
+\midrule
+2WikiMultiHopQA & $+2.0$\%  & $+11.6$\% & Direction reproduced \\
+StrategyQA      & $+9.2$\%  & $+8.7$\%  & \checkmark~Very close \\
+ASQA            & $+14.0$\% & $+1.3$\%  & Direction reproduced \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ============================================================
+\section{FLARE Behavior Analysis}
+\label{sec:analysis}
+
+We looked at the \texttt{traces.jsonl} from the 2WikiMultiHopQA
+run to understand what the FLARE loop is actually doing step by step.
+Table~\ref{tab:traces} shows the numbers.
+
+\begin{table}[htbp]
+\caption{FLARE Loop Statistics -- 2WikiMultiHopQA (500 examples)}
+\label{tab:traces}
+\centering
+\begin{tabular}{lr}
+\toprule
+\textbf{Metric}                          & \textbf{Value}  \\
+\midrule
+Total generation steps                   & 2{,}242         \\
+Average steps per example                & 4.48            \\
+Steps where model was confident (no retrieval) & 253\ (11.3\%) \\
+Steps where retrieval was triggered      & 1{,}989\ (88.7\%) \\
+Average retrievals per example           & 3.98            \\
+Mean min token probability per step      & 0.417           \\
+Median min token probability             & 0.391           \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The retrieval rate of 88.7\% is the main issue. FLARE is supposed to
+retrieve \emph{selectively} — the paper says 40--80\% is the useful
+range. At 88.7\% we are retrieving at almost every step, which means
+we are sometimes injecting Wikipedia passages that are not relevant,
+adding noise to the generation.
+
+The reason this happens is that our model produces much lower token
+probabilities than Codex, even when it knows the answer. The mean
+minimum probability per step is 0.417, which is well below the
+threshold of 0.8. A single token at 0.79 triggers retrieval, and
+for Qwen3-4B that happens almost always.
+
+The fix would be to lower $\theta$ to around 0.5 for this model
+size, which would bring the retrieval rate into the optimal range.
+We did not tune this in the current experiments, but it is probably
+why the 2WikiMH gain is smaller than expected. FLARE still beats
+both baselines despite the over-retrieval, which suggests the
+algorithm is fundamentally working.
+
+% ============================================================
+\section{Differences from the Paper}
+\label{sec:differences}
+
+Table~\ref{tab:differences} lists the main ways our implementation
+differs from Sun et al.
+
+\begin{table}[htbp]
+\caption{Implementation Differences from Sun et al.~\cite{sun2023flare}}
+\label{tab:differences}
+\centering
+\begin{tabular}{p{1.5cm}p{2.2cm}p{2.2cm}}
+\toprule
+\textbf{Aspect}       & \textbf{Paper}              & \textbf{Ours}               \\
+\midrule
+LM Model      & Codex $\sim$175B (API)      & Qwen3-4B (local, 4-bit)     \\
+LM Type       & Completion                  & Chat / Instruct             \\
+Precision     & FP16                        & 4-bit NF4                   \\
+Wiki index    & Custom BM25 dump            & Pyserini wikipedia-dpr      \\
+FLARE variant & direct + instruct           & direct only                 \\
+ASQA metric   & Disambig-F1 + ROUGE-L       & EM + F1                     \\
+Datasets      & 4 (incl. WikiASP)           & 3 (WikiASP excluded)        \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The biggest difference by far is the model. Everything else —
+the algorithm, the threshold values, the passage size, the
+BM25 retrieval method — is kept as close to the paper as possible.
+The chat-template adaptation for Qwen adds some formatting overhead
+but does not change how the retrieval logic works.
+
+% ============================================================
+\section{Discussion}
+\label{sec:discussion}
+
+\subsection{The Main Finding Holds}
+Across all three datasets we tested, FLARE consistently beats both
+No Retrieval and Single Retrieval. This is the central claim of the
+paper and it holds even with a model that is around 40$\times$ smaller.
+That is a meaningful result.
+
+\subsection{Smaller Models Can Benefit More}
+The ASQA result is somewhat unexpected. We get a $+14\%$ EM improvement
+from FLARE whereas the paper only gets $+1.3\%$. One interpretation
+is that smaller models benefit more from active retrieval because they
+cannot rely on stored knowledge — they \emph{need} the Wikipedia
+passages to fill in gaps. Codex can often answer from memory, but
+Qwen3-4B cannot, so the retrieval loop helps it more.
+
+\subsection{Threshold Needs Re-tuning}
+Using $\theta = 0.8$ for a 4B model is probably not the right choice.
+The paper tuned this value on Codex, and Codex has a very different
+probability distribution. A threshold around 0.5 would likely work
+better here and should improve the 2WikiMH numbers specifically. This
+is the most obvious next step.
+
+\subsection{Limitations}
+\begin{itemize}[leftmargin=*]
+  \item WikiASP was not evaluated due to a data loading issue with
+    the HuggingFace parquet schema.
+  \item We did not implement FLARE\textsubscript{instruct}.
+  \item Only the development split was used, not test.
+  \item We did not implement Disambig-F1 or ROUGE-L metrics.
+  \item All results are from a single run; no statistical testing
+    was done.
+\end{itemize}
+
+% ============================================================
+\section{Conclusion}
+\label{sec:conclusion}
+
+We reimplemented FLARE using a local 4-bit quantized model
+(Qwen3-4B-Instruct-2507) and a pre-built Pyserini BM25 index over
+Wikipedia. Even with a model roughly 40$\times$ smaller than the
+original, the core pattern -- FLARE outperforming both No Retrieval
+and Single Retrieval -- holds on all three datasets we evaluated.
+
+On StrategyQA the FLARE gain ($+9.2\%$ EM) nearly matches the paper's
+($+8.7\%$ EM), showing the mechanism is consistent across model
+scales. On ASQA our improvement is actually larger than the paper's
+($+14.0\%$ vs $+1.3\%$ EM), which suggests smaller models benefit
+more from active retrieval when they lack the parametric knowledge to
+answer without help.
+
+The main open issue is threshold calibration. The $\theta = 0.8$
+setting causes over-retrieval (88.7\% rate) with this smaller model,
+which reduces the benefit on multi-hop questions. Lowering the
+threshold to around 0.5 would likely improve results without changing
+anything in the algorithm.
+
+Overall, the key ideas from the FLARE paper can be reproduced using
+open-source tools that run on consumer hardware, without needing
+access to large proprietary APIs.
+
+% ============================================================
+\section*{Acknowledgments}
+
+The authors thank \textbf{Jignesh Patel sir} for guidance and feedback
+throughout this project, and the open-source communities behind
+HuggingFace Transformers, Pyserini, and the Qwen model family.
+
+% ============================================================
+\begin{thebibliography}{99}
+
+\bibitem{sun2023flare}
+Z.~Sun, X.~Wang, Y.~Tay, Y.~Yang, and D.~Zhou,
+``Active retrieval augmented generation,''
+in \emph{Proc.\ Conf.\ Empirical Methods in Natural Language Processing
+  (EMNLP)}, Singapore, Dec.\ 2023, pp.\ 7969--7992.
+
+\bibitem{lewis2020rag}
+P.~Lewis, E.~Perez, A.~Piktus, F.~Petroni, V.~Karpukhin,
+N.~Goyal, H.~K\"{u}ttler, M.~Lewis, W.-T.~Yih, T.~Rockt\"{a}schel,
+S.~Riedel, and D.~Kiela,
+``Retrieval-augmented generation for knowledge-intensive NLP tasks,''
+in \emph{Advances in Neural Information Processing Systems (NeurIPS)},
+vol.~33, pp.\ 9459--9474, 2020.
+
+\bibitem{izacard2020leveraging}
+G.~Izacard and E.~Grave,
+``Leveraging passage retrieval with generative models for open domain
+  question answering,''
+in \emph{Proc.\ Conf.\ European Chapter of the ACL (EACL)},
+2021, pp.\ 874--880.
+
+\bibitem{trivedi2022interleaving}
+H.~Trivedi, N.~Balasubramanian, T.~Khot, and A.~Sabharwal,
+``Interleaving retrieval with chain-of-thought reasoning for
+  knowledge-intensive multi-step questions,''
+in \emph{Proc.\ Annual Meeting of the ACL}, Toronto, 2023,
+pp.\ 10014--10037.
+
+\bibitem{press2022measuring}
+O.~Press, M.~Zhang, S.~Min, L.~Schmidt, N.~A.~Smith, and M.~Lewis,
+``Measuring and narrowing the compositionality gap in language models,''
+in \emph{Findings of EMNLP}, 2023.
+
+\bibitem{ji2023hallucination}
+Z.~Ji, N.~Lee, R.~Frieske, T.~Yu, D.~Su, Y.~Xu,
+E.~Ishii, Y.~J.~Bang, A.~Madotto, and P.~Fung,
+``Survey of hallucination in natural language generation,''
+\emph{ACM Computing Surveys}, vol.~55, no.~12, pp.\ 1--38, 2023.
+
+\bibitem{kamath2020selective}
+A.~Kamath, R.~Jia, and P.~Liang,
+``Selective question answering under domain shift,''
+in \emph{Proc.\ Annual Meeting of the ACL}, 2020, pp.\ 5684--5696.
+
+\bibitem{longpre2021entity}
+S.~Longpre, K.~Perisetla, A.~Chen, N.~Ramesh,
+C.~DuBois, and S.~Singh,
+``Entity-based knowledge conflicts in question answering,''
+in \emph{Proc.\ EMNLP}, 2021, pp.\ 7052--7063.
+
+\bibitem{ho2020constructing}
+X.~Ho, A.-K.~D.~Nguyen, S.~Sugawara, and A.~Aizawa,
+``Constructing a multi-hop QA dataset for comprehensive evaluation of
+  reasoning steps,''
+in \emph{Proc.\ COLING}, 2020, pp.\ 6609--6625.
+
+\bibitem{geva2021aristotle}
+M.~Geva, D.~Khashabi, E.~Segal, T.~Khot, D.~Roth, and J.~Berant,
+``Did Aristotle use a laptop? A question answering benchmark with
+  implicit reasoning strategies,''
+\emph{Transactions of the ACL}, vol.~9, pp.\ 346--361, 2021.
+
+\bibitem{stelmakh2022asqa}
+I.~Stelmakh, Y.~Luan, B.~Dhingra, and M.-W.~Chang,
+``ASQA: Factoid questions meet long-form answers,''
+in \emph{Proc.\ EMNLP}, 2022, pp.\ 8273--8288.
+
+\bibitem{hayashi2021wikiasp}
+H.~Hayashi, P.~Budania, P.~Wang, C.~Ackerson, R.~Neervannan, and
+G.~Neubig,
+``WikiAsp: A dataset for multi-domain aspect-based summarization,''
+\emph{Transactions of the ACL}, vol.~9, pp.\ 211--225, 2021.
+
+\bibitem{pyserini}
+J.~Lin, X.~Ma, S.-C.~Lin, J.~Yang, R.~Pradeep, and R.~Nogueira,
+``Pyserini: A Python toolkit for reproducible information retrieval
+  research with sparse and dense representations,''
+in \emph{Proc.\ ACM SIGIR}, 2021, pp.\ 2356--2362.
+
+\bibitem{qwen3}
+Qwen Team, Alibaba Cloud,
+``Qwen3 Technical Report,''
+\emph{arXiv preprint arXiv:2505.09388}, 2025.
+[Online]. Available: \url{https://arxiv.org/abs/2505.09388}
+
+\bibitem{dettmers2024qlora}
+T.~Dettmers, A.~Pagnoni, A.~Holtzman, and L.~Zettlemoyer,
+``QLoRA: Efficient finetuning of quantized LLMs,''
+in \emph{Advances in Neural Information Processing Systems (NeurIPS)},
+vol.~36, 2024.
+
+\end{thebibliography}
+
+\balance
+\end{document}
