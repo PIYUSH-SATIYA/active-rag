@@ -73,6 +73,9 @@ Useful flags:
   default.
 - `--budget-minutes` is checked before each new example; partial results are kept.
 - `--dry-run` prints the assignment and example IDs without loading the model.
+- Before loading Qwen, the runner probes two live searches and prints provider
+  statistics. A 0/2 result means the Colab IP is blocked; reconnect for a new
+  IP or set `TAVILY_API_KEY`. `--skip-probe` disables this check.
 - `--skip-install` skips pip; `--download-data` fetches full datasets.
 - `--baseline-dir` overrides baseline discovery.
 

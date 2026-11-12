@@ -247,6 +247,41 @@ def job_limit(job: dict, args) -> int:
     return base
 
 
+def probe_web(base_config: dict, results_root: str) -> None:
+    """Fail loudly when the Colab IP is blocked by every search provider."""
+    from src.retrieval.factory import build_retriever
+
+    print("[probe] checking live search providers ...")
+    try:
+        retriever = build_retriever(
+            "web",
+            base_config,
+            options={"cache_dir": os.path.join(results_root, "web_cache")},
+        )
+    except Exception as exc:  # noqa: BLE001 - diagnostics only
+        print(f"[probe] could not build web retriever: {exc}")
+        return
+
+    ok = 0
+    for query in ("Who wrote Pride and Prejudice?", "What is the capital of France?"):
+        try:
+            rows = retriever.retrieve([query], topk=1)[0]
+        except Exception as exc:  # noqa: BLE001 - diagnostics only
+            print(f"[probe] {query!r} failed: {exc}")
+            continue
+        ok += bool(rows)
+        first = rows[0].title if rows else "<none>"
+        print(f"[probe] {query!r} -> {first}")
+
+    print(f"[probe] {ok}/2 queries returned results; {retriever.summary()}")
+    if ok == 0:
+        print(
+            "[probe] WARNING: every provider failed. This Colab IP is probably "
+            "blocked. Reconnect for a new IP, or set TAVILY_API_KEY, before "
+            "spending the budget."
+        )
+
+
 def cmd_run(args, deadline: Optional[float] = None) -> None:
     workdir = resolve_workdir(args)
     os.chdir(workdir)
@@ -327,6 +362,11 @@ def cmd_run(args, deadline: Optional[float] = None) -> None:
     web_config = dict(matrix.get("web", {}))
     web_config["cache_dir"] = os.path.join(results_root, "web_cache")
     base_config["web"] = web_config
+
+    if not args.skip_probe and any(
+        (job.get("retriever") or "").lower() in {"web", "hybrid"} for job in prepared
+    ):
+        probe_web(base_config, results_root)
 
     print(f"[run] loading {base_config['model_name']} (4-bit={base_config['quantize_4bit']})")
     try:
@@ -516,6 +556,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--dry-run",
         action="store_true",
         help="resolve jobs and IDs, then exit before loading the model",
+    )
+    common.add_argument(
+        "--skip-probe",
+        action="store_true",
+        help="skip the live search provider check before loading the model",
     )
 
     parser = argparse.ArgumentParser(description="Web-FLARE Colab runner")
