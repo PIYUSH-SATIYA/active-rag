@@ -7,3 +7,5 @@ pyserini
 faiss-cpu
 spacy
 bitsandbytes
+ddgs
+requests

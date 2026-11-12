@@ -1,12 +1,10 @@
-from dataclasses import dataclass
 from typing import List, Optional
 import json
 
-@dataclass
-class RetrievalResult:
-    doc_id: str
-    text: str
-    score: float
+from src.retrieval.base import RetrievalResult
+
+__all__ = ["RetrievalResult", "Retriever"]
+
 
 class Retriever:
     def __init__(self, host: str = None, index_name: str = "wikipedia-dpr"):

@@ -46,6 +46,25 @@ def _truncate_at_sentence_boundary(text: str) -> str:
     return parts[0].strip()
 
 
+def _doc_meta(doc: Any) -> dict:
+    """Serialisable retrieval metadata; works for both result dataclasses and dicts."""
+    if isinstance(doc, dict):
+        return {
+            "doc_id": doc.get("doc_id"),
+            "source": doc.get("source", "bm25"),
+            "url": doc.get("url"),
+            "title": doc.get("title"),
+            "score": doc.get("score"),
+        }
+    return {
+        "doc_id": getattr(doc, "doc_id", None),
+        "source": getattr(doc, "source", "bm25"),
+        "url": getattr(doc, "url", None),
+        "title": getattr(doc, "title", None),
+        "score": getattr(doc, "score", None),
+    }
+
+
 class FLAREAgent:
     def __init__(self, generator: Any, retriever: Any, config: dict):
         self.generator = generator
@@ -85,8 +104,9 @@ class FLAREAgent:
         
         # Retrieve once using the question
         retrieved_docs = self.retriever.retrieve([question], topk=top_k)
-        contexts = [doc.text for doc in retrieved_docs[0]] if retrieved_docs else []
-        
+        docs = retrieved_docs[0] if retrieved_docs else []
+        contexts = [doc.text for doc in docs]
+
         result = look_ahead_generate(
             generator=self.generator,
             question=question,
@@ -97,7 +117,14 @@ class FLAREAgent:
         
         return FLAREResult(
             text=result.text.split('\n\n')[0].strip(),
-            retrieval_history=[{"step": 0, "query": question, "retrieved_docs": contexts}]
+            retrieval_history=[
+                {
+                    "step": 0,
+                    "query": question,
+                    "retrieved_docs": contexts,
+                    "retrieved_meta": [_doc_meta(doc) for doc in docs],
+                }
+            ],
         )
 
     def _generate_flare(self, question: str) -> FLAREResult:
@@ -187,6 +214,7 @@ class FLAREAgent:
                 )
                 docs_for_query = retrieved_docs[0] if retrieved_docs else []
                 new_contexts = [doc.text for doc in docs_for_query]
+                retrieved_meta = [_doc_meta(doc) for doc in docs_for_query]
 
                 retrieved_contexts = new_contexts
 
@@ -194,6 +222,7 @@ class FLAREAgent:
                     "step": step,
                     "query": query,
                     "retrieved_docs": new_contexts,
+                    "retrieved_meta": retrieved_meta,
                 })
 
                 regen_result = look_ahead_generate(

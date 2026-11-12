@@ -1,0 +1,502 @@
+[
+{
+"qid": "7a0e419ffb6009156828",
+"question": "Was ship that recovered Apollo 13 named after a World War II battle?",
+"answer": "true"
+},
+{
+"qid": "427fe3968e32005479b9",
+"question": "Is the tibia necessary to win the Stanley Cup?",
+"answer": "true"
+},
+{
+"qid": "06b9ed3f803e3d5796ed",
+"question": "Could the Powepuff Girls make the background to the Azerbaijani flag?",
+"answer": "true"
+},
+{
+"qid": "5090f573b09ac3050824",
+"question": "Are eagles and young bears both used as labels for skills-training youth groups?",
+"answer": "true"
+},
+{
+"qid": "d912709b7341dd86ba39",
+"question": "Would an Olympic athlete be tired out after running a mile?",
+"answer": "false"
+},
+{
+"qid": "ecd7594494e88099aeac",
+"question": "Would a goblin shark eat at Crossroads Kitchen?",
+"answer": "false"
+},
+{
+"qid": "425683ababbbc31c733c",
+"question": "Was  Godfrey of Bouillon an Islamaphobe?",
+"answer": "true"
+},
+{
+"qid": "e03ec826db49319eb034",
+"question": "Did Helen Keller ever read a novel by J. K. Rowling?",
+"answer": "false"
+},
+{
+"qid": "43a26c2f067095e1992b",
+"question": "Is Guitar Hero Beatles inappropriate for a US third grader?",
+"answer": "false"
+},
+{
+"qid": "fc3a305f513090432212",
+"question": "Is CAS number 8009-03-8 harmful for a rash?",
+"answer": "false"
+},
+{
+"qid": "a593481c1ddb91e9f96b",
+"question": "Is the Asian black bear multicolored?",
+"answer": "true"
+},
+{
+"qid": "b9d5010aaef9115f77e7",
+"question": "Could Tom Cruise explain mental auditing?",
+"answer": "true"
+},
+{
+"qid": "7571100f05bc56919c78",
+"question": "Is it unusual to play Happy hardcore music at a funeral?",
+"answer": "true"
+},
+{
+"qid": "07e2a845709bbcb30b65",
+"question": "Could every citizen of Samoa send a letter to a unique JPMorgan Chase employee?",
+"answer": "true"
+},
+{
+"qid": "b135f5ff283e5f7329a9",
+"question": "Would Michael J Fox qualify for the Army Rangers?",
+"answer": "false"
+},
+{
+"qid": "56b31f6fe1e5163d2382",
+"question": "Will a Holstein cow and the Liberty Bell balance out a giant scale?",
+"answer": "false"
+},
+{
+"qid": "b3c5d591c696cda63e48",
+"question": "Do hyenas appear in a Broadway musical?",
+"answer": "true"
+},
+{
+"qid": "2bec732d14cf2b289435",
+"question": "Are most mall Santa Claus actors white?",
+"answer": "true"
+},
+{
+"qid": "e201b35fd4c6f00aa5ae",
+"question": "Does Princess Peach's dress resemble a peach fruit?",
+"answer": "false"
+},
+{
+"qid": "05ab64dd540d095d9c62",
+"question": "Do people with mood disorders need permanent institutionalization?",
+"answer": "false"
+},
+{
+"qid": "47ba45019129dd07cb55",
+"question": "Could Stephen King join the NASA Astronaut Corps?",
+"answer": "false"
+},
+{
+"qid": "e32529b0074a1b857a85",
+"question": "Would Avengers Comics be out of place in a DC Comics store?",
+"answer": "true"
+},
+{
+"qid": "4a99bfb0539856dbf1a4",
+"question": "Was the MLB World Series held in Newcastle, New South Wales?",
+"answer": "false"
+},
+{
+"qid": "dac61f77d13b59a9631e",
+"question": "Would someone pay for a coffee in NYC with Euros?",
+"answer": "false"
+},
+{
+"qid": "a18c59e77cc176f748b2",
+"question": "Do some home remedies result in your skin color turning blue?",
+"answer": "true"
+},
+{
+"qid": "bd3caa68cb957d27b0e2",
+"question": "Were Greeks essential to crafting Egyptian Lighthouse of Alexandria?",
+"answer": "true"
+},
+{
+"qid": "b995e9731d1488cc1241",
+"question": "Do all cancer patients get disability?",
+"answer": "false"
+},
+{
+"qid": "959fb200fccf056f00d7",
+"question": "Did Naruto escape the Temple of Doom?",
+"answer": "false"
+},
+{
+"qid": "076f905ae36408b5ee69",
+"question": "Is lunch on the beach a good activity to spot the full circle of a rainbow?",
+"answer": "false"
+},
+{
+"qid": "0d22526961c82ad6ef4a",
+"question": "Is a fairy more prevalent in world myths than a valkyrie?",
+"answer": "true"
+},
+{
+"qid": "acbc6f68c37f4f9dc601",
+"question": "Would a caracal be defeated by Javier Sotomayor in a high jump competition?",
+"answer": "false"
+},
+{
+"qid": "8e35a948ae9e0bf019f4",
+"question": "Is a curling iron necessary in curling?",
+"answer": "false"
+},
+{
+"qid": "e6391d901dcc8a269c79",
+"question": "Did King James I despise fairy beings?",
+"answer": "true"
+},
+{
+"qid": "9cba30635f5cfd2ce0d4",
+"question": "Do Elementary School students typically need graphing calculators?",
+"answer": "false"
+},
+{
+"qid": "71ca1a8a75c5c582ab3f",
+"question": "Do most high school head coaches make as much as the Head Coach at NCSU?",
+"answer": "false"
+},
+{
+"qid": "697789a9ee6a5b2f4e0f",
+"question": "Is Michael an unpopular name in the United States?",
+"answer": "false"
+},
+{
+"qid": "07ba78b177df5d2a30c3",
+"question": "Did Rosalind Franklin contribute to work that led to Whole Genome Sequencing?",
+"answer": "true"
+},
+{
+"qid": "d57b4438cf31f3ca05fe",
+"question": "Is MIX a word and a roman numeral?",
+"answer": "true"
+},
+{
+"qid": "b3522ea1e8d0a95dd0b3",
+"question": "If your electric stove has a glass top, should you use cast iron skillets?",
+"answer": "false"
+},
+{
+"qid": "b5cdf7f8a6b440cdd451",
+"question": "Could Carl Friedrich Gauss speak to someone 100 miles away?",
+"answer": "false"
+},
+{
+"qid": "668a4e03534608476faf",
+"question": "Would Ringo Starr avoid the pot roast at a restaurant?",
+"answer": "true"
+},
+{
+"qid": "cc072feedd07aee23d2a",
+"question": "Does Iphone have more iterations than Samsung Galaxy?",
+"answer": "false"
+},
+{
+"qid": "b418ba4e11aee26faabc",
+"question": "Does Jason have anything in common with Dr. Disrespect?",
+"answer": "true"
+},
+{
+"qid": "261863cb4eeef4df279d",
+"question": "Would you hire someone with dyscalculia to do surveying work?",
+"answer": "false"
+},
+{
+"qid": "30b5a9505949caa3c4cd",
+"question": "Is it more expensive to run for President of India than to buy a new iPhone 11?",
+"answer": "false"
+},
+{
+"qid": "3c95fe5ad91a9c38bc15",
+"question": "Can Arnold Schwarzenegger deadlift an adult Black rhinoceros?",
+"answer": "false"
+},
+{
+"qid": "4496d5cac14132b6e7ea",
+"question": "Did any citizen of San Antonio vote for Boris Johnson?",
+"answer": "false"
+},
+{
+"qid": "e39243fb96d47aba82a2",
+"question": "Was Jackson Pollock trained by Leonardo da Vinci?",
+"answer": "false"
+},
+{
+"qid": "669b3c6a48f494a5d74e",
+"question": "Was Kurt Cobain's death indirectly caused by Daniel LeFever?",
+"answer": "true"
+},
+{
+"qid": "2c71f90e9c5656eb8edc",
+"question": "Could the moon fit inside the Black Sea?",
+"answer": "false"
+},
+{
+"qid": "05e69c19a536222d90db",
+"question": "Did Jon Brower Minnoch suffer from anorexia nervosa?",
+"answer": "false"
+},
+{
+"qid": "e374088f76c6618c3459",
+"question": "Do all of the African regions that participated in the Portugese Colonial War share an official language?",
+"answer": "true"
+},
+{
+"qid": "8cfde6ee28d059a5aff6",
+"question": "Is it possible to get killed walking to the Very Large Telescope?",
+"answer": "true"
+},
+{
+"qid": "5633fa480c01d39119ee",
+"question": "Is B's place in alphabet same as Prince Harry's birth order?",
+"answer": "true"
+},
+{
+"qid": "f61fa68d73eb81ede181",
+"question": "Does it seem like the Gorillaz is composed of more members than they have?",
+"answer": "true"
+},
+{
+"qid": "2a7eeadb1e045fda4550",
+"question": "Was the amount of spinach Popeye ate unhealthy?",
+"answer": "true"
+},
+{
+"qid": "748b072c995cf5147ac9",
+"question": "Are deaf people left out of enjoying music?",
+"answer": "false"
+},
+{
+"qid": "9e18fca673458935cbe8",
+"question": "Was the Carnation Revolution the deadliest revolution in Europe?",
+"answer": "false"
+},
+{
+"qid": "86a79365b44b937959f7",
+"question": "Would Recep Tayyip Erdoğan be unfamiliar with börek?",
+"answer": "false"
+},
+{
+"qid": "784d37fe54b0ad49c49a",
+"question": "Is there a jukebox musical about a sweet transvestite from Transexual, Transylvania?",
+"answer": "false"
+},
+{
+"qid": "bcfeb6bb99d969f74e48",
+"question": "Is \"A Tale of Two Cities\" a popular science novel?",
+"answer": "false"
+},
+{
+"qid": "441d83eccca7714ba2a7",
+"question": "Could Al Capone have read works from the Harlem Renaissance?",
+"answer": "true"
+},
+{
+"qid": "115dd3102b245bdbc737",
+"question": "Did Dr. Seuss live a tragedy free life?",
+"answer": "false"
+},
+{
+"qid": "56434ca634c4ef6e0741",
+"question": "Could  jockey win Triple Crown between Eid al-Fitr endpoints?",
+"answer": "false"
+},
+{
+"qid": "d19a209a6cddeca38a94",
+"question": "Do American teams in National Hockey League outnumber Canadian teams?",
+"answer": "true"
+},
+{
+"qid": "250d2ecf5f5bc889a863",
+"question": "Did the Nazis use the Hammer and sickle flag?",
+"answer": "false"
+},
+{
+"qid": "0b577826d5e7b6a50aad",
+"question": "Is tobacco use made to seem enjoyable in Alice's Adventures in Wonderland?",
+"answer": "true"
+},
+{
+"qid": "e705505f353721ac0b59",
+"question": "Did Tom Bosley enjoy video games on the PlayStation 4?",
+"answer": "false"
+},
+{
+"qid": "037acdd213ada618830f",
+"question": "Would a sesame seed be mistaken for a wood frog egg?",
+"answer": "false"
+},
+{
+"qid": "f9fcf86196d1847b2f0b",
+"question": "Could you drive a Rowe 550 to the 2008 Summer Olympics?",
+"answer": "true"
+},
+{
+"qid": "8c599ce83178d5c0f480",
+"question": "Does highest US Court have enough seats for every Prime Minister of the United Kingdom since 1952?",
+"answer": "false"
+},
+{
+"qid": "2e508efbf0b72f1af2c2",
+"question": "Could Quartz be useful to humans if plants died off and there was no oxygen?",
+"answer": "true"
+},
+{
+"qid": "363a55b705110a878be1",
+"question": "If Goofy were a pet, would he need heartworm prevention?",
+"answer": "true"
+},
+{
+"qid": "ae25e990129848141330",
+"question": "Is there a Harry Potter character named after Florence?",
+"answer": "true"
+},
+{
+"qid": "a202af46315d9970d768",
+"question": "Did University of Pittsburgh founder have great deal in common with Judith Sheindlin?",
+"answer": "true"
+},
+{
+"qid": "7ce5f72988455dfb63da",
+"question": "Would the operating system of a Samsung Galaxy 1 sound edible?",
+"answer": "true"
+},
+{
+"qid": "643a517d0d0f0d2944a3",
+"question": "Are Brian Cranston and Saoirse Ronan's combined Emmy Awards a prime number?",
+"answer": "false"
+},
+{
+"qid": "8f936e225ee1fe225f66",
+"question": "Would Shaggy and Redenbacher popcorn founder both raise hand during first name roll call?",
+"answer": "true"
+},
+{
+"qid": "80aa769f55b14c1e4d8d",
+"question": "Are sables related to wolverines?",
+"answer": "true"
+},
+{
+"qid": "d8eaf52f02c5cfb98bce",
+"question": "Do human sacrums have more fused vertebrae than an Alaskan Malamute?",
+"answer": "true"
+},
+{
+"qid": "f5e5ec91462ee970cf86",
+"question": "Can you see the Statue of Freedom from the Statue of Liberty?",
+"answer": "false"
+},
+{
+"qid": "24b3b5e476a4c7b4824e",
+"question": "Would you spend less on your food at Aldi than at Whole Foods?",
+"answer": "true"
+},
+{
+"qid": "b77d2efee37741e44c32",
+"question": "Did the Space Race use relay batons?",
+"answer": "false"
+},
+{
+"qid": "da76a093d3b1cc47c6f2",
+"question": "Can a traffic collision make someone a millionaire?",
+"answer": "true"
+},
+{
+"qid": "1515242f123df1362ad7",
+"question": "Would a body builder prefer an elk burger over a beef burger?",
+"answer": "true"
+},
+{
+"qid": "b257b34db67a10038f18",
+"question": "Does Rusev have to worry about human overpopulation in his homeland?",
+"answer": "false"
+},
+{
+"qid": "5fd0dc99fdf46de79b6a",
+"question": "Would someone on antidepressants need to be cautious of some citrus fruits?",
+"answer": "true"
+},
+{
+"qid": "a59367577ae81ab33531",
+"question": "Can lettuce result in spontaneous abortion?",
+"answer": "true"
+},
+{
+"qid": "fa6c3c6b8471d6489f43",
+"question": "Did earth complete at least one orbit around the sun during the Napoleonic Wars?",
+"answer": "true"
+},
+{
+"qid": "088e22a7b1b40fd2d95b",
+"question": "Can the Moscow Kremlin fit inside Disney Land?",
+"answer": "true"
+},
+{
+"qid": "1a50ff1647077d670841",
+"question": "Would a snakebite hypothetically be a threat to T-1000?",
+"answer": "false"
+},
+{
+"qid": "b3c8f537cfb900ba92e5",
+"question": "Would the chef at La Grenouille find salsa to be a strange request?",
+"answer": "true"
+},
+{
+"qid": "99e34b51538c03fcd8bb",
+"question": "Is Fiat Chrysler gaining a new overall corporate identity?",
+"answer": "true"
+},
+{
+"qid": "11f0ae8346b66bc1d948",
+"question": "Is Tange Sazen hypothetically an ideal choice for a secretary job?",
+"answer": "false"
+},
+{
+"qid": "ed421aaf019e01f38a84",
+"question": "Would Persephone be a good consultant to a landscape architect?",
+"answer": "true"
+},
+{
+"qid": "2b0900c25deff445e6b1",
+"question": "Do salmon mate in the Caspian Sea?",
+"answer": "false"
+},
+{
+"qid": "8d06b619a7045ed02f51",
+"question": "Is the title of Shirley Bassey's 1971 diamond song a true statement?",
+"answer": "false"
+},
+{
+"qid": "b88ba16883b786c8469b",
+"question": "Does Bombyx mori have a monopoly over silk production?",
+"answer": "false"
+},
+{
+"qid": "4c72798de7aca9e0954e",
+"question": "Is Metallica protective over their music?",
+"answer": "true"
+},
+{
+"qid": "603f33161fb1500bb73d",
+"question": "Can a person be diagnosed with a Great Depression?",
+"answer": "false"
+}
+]

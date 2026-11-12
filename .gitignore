@@ -60,6 +60,14 @@ results/*.json
 results/*.jsonl
 results/*.csv
 results/*.txt
+results/webflare/
+.cache/
+runs/
+
+# ─── Committed pilot split (small, keeps Colab runs hermetic) ────────────────
+!data/pilot/
+!data/pilot/**/*.json
+!data/pilot/**/*.jsonl
 
 # ─── Logs ────────────────────────────────────────────────────────────────────
 *.log

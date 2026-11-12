@@ -1,0 +1,116 @@
+{
+  "model_name": "Qwen/Qwen3-4B-Instruct-2507",
+  "quantize_4bit": true,
+  "base_config": "configs/2wikihop_qwen_flare_config.json",
+  "baseline_dir_candidates": [
+    "/content/drive/MyDrive/active-rag-results",
+    "data/pilot/baselines",
+    "results"
+  ],
+  "web": {
+    "backend": "auto",
+    "min_interval": 0.6,
+    "fetch_pages": false,
+    "include_url": false,
+    "max_chars": 700
+  },
+  "jobs": [
+    {
+      "id": "2wiki_bm25_flare",
+      "dataset": "2wikihop",
+      "data_path": "data/pilot/2wikimultihopqa",
+      "retriever": "bm25",
+      "mode": "flare",
+      "n": 100,
+      "kind": "baseline",
+      "source": "2wiki_flare",
+      "ids_source": "2wiki_flare",
+      "optional": false
+    },
+    {
+      "id": "2wiki_web_flare",
+      "dataset": "2wikihop",
+      "data_path": "data/pilot/2wikimultihopqa",
+      "retriever": "web",
+      "mode": "flare",
+      "n": 100,
+      "kind": "run",
+      "ids_source": "2wiki_flare",
+      "optional": false
+    },
+    {
+      "id": "2wiki_web_single",
+      "dataset": "2wikihop",
+      "data_path": "data/pilot/2wikimultihopqa",
+      "retriever": "web",
+      "mode": "single_retrieval",
+      "n": 50,
+      "kind": "run",
+      "ids_source": "2wiki_flare",
+      "optional": false
+    },
+    {
+      "id": "2wiki_hybrid_flare",
+      "dataset": "2wikihop",
+      "data_path": "data/pilot/2wikimultihopqa",
+      "retriever": "hybrid",
+      "mode": "flare",
+      "n": 100,
+      "kind": "run",
+      "ids_source": "2wiki_flare",
+      "optional": true,
+      "retriever_options": {
+        "rrf_k": 60
+      }
+    },
+    {
+      "id": "strategyqa_bm25_flare",
+      "dataset": "strategyqa",
+      "data_path": "data/pilot/strategyqa",
+      "retriever": "bm25",
+      "mode": "flare",
+      "n": 100,
+      "kind": "baseline",
+      "source": "strategyqa_flare",
+      "ids_source": "strategyqa_flare",
+      "optional": false
+    },
+    {
+      "id": "strategyqa_web_flare",
+      "dataset": "strategyqa",
+      "data_path": "data/pilot/strategyqa",
+      "retriever": "web",
+      "mode": "flare",
+      "n": 100,
+      "kind": "run",
+      "ids_source": "strategyqa_flare",
+      "optional": false
+    },
+    {
+      "id": "strategyqa_bm25_no_ret",
+      "dataset": "strategyqa",
+      "data_path": "data/pilot/strategyqa",
+      "retriever": "none",
+      "mode": "no_retrieval",
+      "n": 100,
+      "kind": "baseline",
+      "source": "strategyqa_no_retrieval",
+      "ids_source": "strategyqa_flare",
+      "optional": false
+    },
+    {
+      "id": "2wiki_web_nwiki",
+      "dataset": "2wikihop",
+      "data_path": "data/pilot/2wikimultihopqa",
+      "retriever": "web",
+      "mode": "flare",
+      "n": 50,
+      "kind": "run",
+      "ids_source": "2wiki_flare",
+      "optional": true,
+      "retriever_options": {
+        "exclude_wikipedia": true
+      }
+    }
+  ]
+}
